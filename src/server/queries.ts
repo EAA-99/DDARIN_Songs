@@ -98,6 +98,26 @@ export async function performanceClips(db: Db, performanceId: number) {
     .orderBy(desc(clips.readCnt), asc(clips.regDate));
 }
 
+export type ClipItem = Awaited<ReturnType<typeof performanceClips>>[number];
+
+/** 여러 무대의 공개 클립을 한 번에(목록 화면의 "클립 N개" 펼치기용) */
+export async function clipsForPerformances(db: Db, ids: number[]): Promise<Map<number, ClipItem[]>> {
+  const map = new Map<number, ClipItem[]>();
+  if (ids.length === 0) return map;
+  const rows = await db.select({
+    performanceId: clips.performanceId, titleNo: clips.titleNo, readCnt: clips.readCnt, uploaderNick: clips.uploaderNick,
+    regDate: clips.regDate, thumbUrl: clips.thumbUrl, durationMs: clips.durationMs,
+  }).from(clips)
+    .where(and(inArray(clips.performanceId, ids), inArray(clips.status, [...PUBLIC_STATUSES])))
+    .orderBy(desc(clips.readCnt), asc(clips.regDate));
+  for (const { performanceId, ...c } of rows) {
+    const list = map.get(performanceId!) ?? [];
+    list.push(c);
+    map.set(performanceId!, list);
+  }
+  return map;
+}
+
 /** 조회수 TOP 10(무대마다 대표 클립 하나). 기간은 KST 기준 */
 export async function topViews(db: Db, period: "week" | "month" | "all", now: Date): Promise<PerfRow[]> {
   const from = period === "week" ? kstWeekStart(now) : period === "month" ? kstMonthStart(now) : null;

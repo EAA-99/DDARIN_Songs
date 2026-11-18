@@ -14,10 +14,17 @@ const COVER = /\b(cover)\b|커버/gi;
 // 이름 구분자: 한글 사이 x/X/×, 또는 & , × 등
 const NAME_SPLIT = /(?<=[가-힣])\s*[xX×]\s*(?=[가-힣])|\s*[&,×+]\s*|\s+[xX]\s+/;
 
+// "(Acapella ver)", "(Live ver.)", "(여자 버전)" 같은 버전 표기
+const VERSION_NOTE = /\b(ver|version)\b\.?|버전|버젼|acapella|아카펠라|\bmr\b|\binst\b/i;
+
+function isMemo(inner: string): boolean {
+  const t = inner.trim().toLowerCase();
+  return MEMO_WORDS.includes(t) || VERSION_NOTE.test(t);
+}
+
 function stripDecorations(raw: string): string {
   let s = raw.replace(/\[[^\]]*\]/g, " ");
-  s = s.replace(/\(([^)]*)\)/g, (m, inner: string) =>
-    MEMO_WORDS.includes(inner.trim().toLowerCase()) ? " " : m);
+  s = s.replace(/\(([^)]*)\)/g, (m, inner: string) => (isMemo(inner) ? " " : m));
   s = s.replace(/_?\d{2}\.\d{2}\.\d{2}\s*$/, "");          // 끝의 날짜 꼬리 "_26.11.06"
   s = s.replace(/\s*\d절(\s*매너)?\s*$/, "");               // "1절 매너"
   s = s.trim().replace(/^[^\p{L}\p{N}]+/u, "");             // 앞의 이모지·기호

@@ -3,7 +3,7 @@ import type { Db } from "@/db";
 import { parseKst } from "@/lib/kst";
 import type { SoopClip } from "@/lib/soop";
 import { ingestClips, markGone } from "@/server/ingest";
-import { artistPage, performanceClips, searchPerformances, songPage, topSongs, topViews } from "@/server/queries";
+import { artistPage, clipsForPerformances, performanceClips, searchPerformances, songPage, topSongs, topViews } from "@/server/queries";
 import { findOrCreateSong } from "@/server/catalog";
 import { createTestDb } from "./helpers/db";
 
@@ -108,4 +108,13 @@ test("artist page by original artist and by partner", async () => {
   expect(gu?.asOriginal).toEqual([]);
   expect(gu?.asPartner.map((r) => r.songTitle).sort()).toEqual(["Memories", "붉은노을"]);
   expect(await artistPage(db, "없는사람")).toBeNull();
+});
+
+test("clips for many stages in one query", async () => {
+  const { rows } = await searchPerformances(db, {});
+  const map = await clipsForPerformances(db, rows.map((r) => r.id));
+  const memA = rows.find((r) => r.songTitle === "Memories" && !r.isDuet)!;
+  expect(map.get(memA.id)!.map((x) => x.readCnt)).toEqual([37, 16, 5]);
+  expect([...map.values()].flat()).toHaveLength(8);
+  expect((await clipsForPerformances(db, [])).size).toBe(0);
 });

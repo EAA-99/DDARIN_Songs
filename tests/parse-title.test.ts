@@ -69,3 +69,11 @@ test("date tail is removed before reading the artist", () => {
   expect(parseTitle("🐶 [개모임 모캡합방] 따린 - 안동역에서 (진성)_26.11.06"))
     .toEqual({ status: "auto", songTitle: "안동역에서", originalArtist: "진성", performers: ["따린"] });
 });
+
+test.each([
+  ["따린 - Nobody Knows (Acapella ver)", "Nobody Knows"],
+  ["따린 - 숲 (Live ver.)", "숲"],
+  ["따린 - Lucky (여자 버전)", "Lucky"],
+])("version notes in parentheses are not the artist: %s", (raw, song) => {
+  expect(parseTitle(raw)).toMatchObject({ status: "auto", songTitle: song, originalArtist: null });
+});
