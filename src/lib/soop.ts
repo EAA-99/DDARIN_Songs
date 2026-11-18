@@ -89,8 +89,11 @@ export class Throttle {
   private async acquire(): Promise<void> {
     if (this.active >= this.concurrency) await new Promise<void>((r) => this.queue.push(r));
     this.active++;
-    const wait = this.lastStart + this.gapMs - Date.now();
-    this.lastStart = Math.max(Date.now(), this.lastStart + this.gapMs);
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    const target = Math.max(Date.now(), this.lastStart + this.gapMs);
+    this.lastStart = target;
+    // 타이머가 몇 ms 일찍 깨어날 수 있어 목표 시각이 지날 때까지 다시 기다린다
+    for (let wait = target - Date.now(); wait > 0; wait = target - Date.now()) {
+      await new Promise((r) => setTimeout(r, wait));
+    }
   }
 }
