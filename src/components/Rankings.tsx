@@ -22,33 +22,28 @@ function ViewList({ rows }: { rows: PerfRow[] }) {
   );
 }
 
-/** 첫 화면 순위: 조회수 TOP 10(이번 주/이번 달/전체) + 많이 부른 곡 TOP 10 */
+/** 첫 화면 순위 카드 하나: 조회수 TOP 10(이번 주/이번 달/전체) + 많이 부른 곡 TOP 10 */
 export async function Rankings() {
   await connection();
   const { week, month, all, songs } = await cachedRankings();
+  const songList = songs.length === 0 ? <p className="rank-empty">아직 집계할 무대가 없어요</p> : (
+    <ol className="rank-list">
+      {songs.map((s) => (
+        <li key={s.slug} className="rank-item">
+          <Link href={songHref(s.slug)}>{s.title}{s.artist && <span className="rank-date"> {s.artist}</span>}</Link>
+          <span className="rank-val num">{s.performances}번</span>
+        </li>
+      ))}
+    </ol>
+  );
   return (
-    <div className="ranks">
-      <section className="rank-card" aria-labelledby="rank-views">
-        <h2 id="rank-views">🔥 조회수 TOP 10</h2>
-        <RankingTabs lists={{ week: <ViewList rows={week} />, month: <ViewList rows={month} />, all: <ViewList rows={all} /> }} />
-      </section>
-      <section className="rank-card" aria-labelledby="rank-songs">
-        <h2 id="rank-songs">🎤 많이 부른 곡 TOP 10</h2>
-        {songs.length === 0 ? <p className="rank-empty">아직 집계할 무대가 없어요</p> : (
-          <ol className="rank-list">
-            {songs.map((s) => (
-              <li key={s.slug} className="rank-item">
-                <Link href={songHref(s.slug)}>{s.title}</Link>
-                <span className="rank-val num">{s.performances}번</span>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-    </div>
+    <section className="rank-card" aria-labelledby="rank-title">
+      <h2 id="rank-title">인기 순위</h2>
+      <RankingTabs lists={{ week: <ViewList rows={week} />, month: <ViewList rows={month} />, all: <ViewList rows={all} />, songs: songList }} />
+    </section>
   );
 }
 
 export function RankingsSkeleton() {
-  return <div className="ranks"><div className="skeleton" style={{ height: 300 }} /><div className="skeleton" style={{ height: 300 }} /></div>;
+  return <div className="skeleton" style={{ height: 420 }} />;
 }

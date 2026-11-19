@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, test } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Player } from "@/components/Player";
 import { PlayerProvider, usePlayer } from "@/components/PlayerProvider";
 import { embedUrl, soopUrl } from "@/lib/links";
@@ -16,9 +16,9 @@ let play: ReturnType<typeof usePlayer>["play"];
 function Grab() { play = usePlayer().play; return null; }
 
 test("play() loads the clip in the iframe and links to SOOP", () => {
-  render(<PlayerProvider><Player /><Grab /></PlayerProvider>);
-  expect(screen.queryByTitle(/SOOP 플레이어/)).toBeNull();
-  expect(screen.getByText(/듣고 싶은 무대/)).toBeTruthy();
+  const { container } = render(<PlayerProvider><Player /><Grab /></PlayerProvider>);
+  // 재생 전에는 자리를 차지하지 않는다
+  expect(container.innerHTML).toBe("");
 
   act(() => play(111, "Memories · 윤미래"));
   const frame = screen.getByTitle(/SOOP 플레이어/) as HTMLIFrameElement;
@@ -29,4 +29,11 @@ test("play() loads the clip in the iframe and links to SOOP", () => {
   act(() => play(222, "Feel Good"));
   expect((screen.getByTitle(/SOOP 플레이어/) as HTMLIFrameElement).src).toBe(embedUrl(222));
   expect((screen.getByRole("link", { name: /SOOP에서 보기/ }) as HTMLAnchorElement).href).toBe(soopUrl(222));
+});
+
+test("the close button hides the player", () => {
+  const { container } = render(<PlayerProvider><Player /><Grab /></PlayerProvider>);
+  act(() => play(111, "Memories"));
+  fireEvent.click(screen.getByRole("button", { name: "플레이어 닫기" }));
+  expect(container.innerHTML).toBe("");
 });

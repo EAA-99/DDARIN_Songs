@@ -118,10 +118,22 @@ export async function clipsForPerformances(db: Db, ids: number[]): Promise<Map<n
   return map;
 }
 
-/** 조회수 TOP 10(무대마다 대표 클립 하나). 기간은 KST 기준 */
+/** 조회수 TOP 10(무대마다 대표 클립 하나, 같은 곡은 가장 높은 무대 하나만). 기간은 KST 기준 */
 export async function topViews(db: Db, period: "week" | "month" | "all", now: Date): Promise<PerfRow[]> {
   const from = period === "week" ? kstWeekStart(now) : period === "month" ? kstMonthStart(now) : null;
-  return selectPerfs(db, from ? gte(performances.startedAt, from) : undefined, ORDER.views, 10);
+  const rows = await selectPerfs(db, from ? gte(performances.startedAt, from) : undefined, ORDER.views, 100);
+  const seen = new Set<string>();
+  return rows.filter((r) => !seen.has(r.songSlug) && seen.add(r.songSlug)).slice(0, 10);
+}
+
+/** 첫 화면 소개용 숫자: 공개 무대·곡·클립 수 */
+export async function siteStats(db: Db) {
+  const [r] = await db.select({
+    stages: count(performances.id),
+    songs: sql<number>`count(distinct ${performances.songId})`.mapWith(Number),
+    clips: sql<number>`coalesce(sum(${performances.clipCount}), 0)`.mapWith(Number),
+  }).from(performances).where(gt(performances.clipCount, 0));
+  return r;
 }
 
 /** 많이 부른 곡 TOP 10(무대 수) */

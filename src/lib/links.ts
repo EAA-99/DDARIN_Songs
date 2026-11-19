@@ -1,5 +1,7 @@
 export const embedUrl = (titleNo: number) => `https://vod.sooplive.com/player/${titleNo}/embed`;
 export const soopUrl = (titleNo: number) => `https://vod.sooplive.com/player/${titleNo}`;
+export const CHANNEL_URL = "https://www.sooplive.com/station/insome0319";
+export const PROFILE_IMG = "https://stimg.sooplive.co.kr/LOGO/in/insome0319/insome0319.jpg";
 export const songHref = (slug: string) => `/song/${encodeURIComponent(slug)}`;
 export const artistHref = (name: string) => `/artist/${encodeURIComponent(name)}`;
 

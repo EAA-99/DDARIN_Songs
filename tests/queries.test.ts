@@ -3,7 +3,7 @@ import type { Db } from "@/db";
 import { parseKst } from "@/lib/kst";
 import type { SoopClip } from "@/lib/soop";
 import { ingestClips, markGone } from "@/server/ingest";
-import { artistPage, clipsForPerformances, performanceClips, searchPerformances, songPage, topSongs, topViews } from "@/server/queries";
+import { artistPage, clipsForPerformances, performanceClips, searchPerformances, siteStats, songPage, topSongs, topViews } from "@/server/queries";
 import { findOrCreateSong } from "@/server/catalog";
 import { createTestDb } from "./helpers/db";
 
@@ -87,7 +87,7 @@ test("rankings", async () => {
   const week = await topViews(db, "week", NOW);
   expect(week.map((r) => r.songTitle)).toEqual(["Feel Good", "Memories"]);
   expect((await topViews(db, "month", NOW))).toHaveLength(3);
-  expect((await topViews(db, "all", NOW))).toHaveLength(4);
+  expect((await topViews(db, "all", NOW)).map((r) => r.songTitle)).toEqual(["Feel Good", "Memories", "붉은노을"]);
   const songsTop = await topSongs(db);
   expect(songsTop[0]).toMatchObject({ title: "Memories", performances: 2 });
 });
@@ -117,4 +117,11 @@ test("clips for many stages in one query", async () => {
   expect(map.get(memA.id)!.map((x) => x.readCnt)).toEqual([37, 16, 5]);
   expect([...map.values()].flat()).toHaveLength(8);
   expect((await clipsForPerformances(db, [])).size).toBe(0);
+});
+
+test("site stats count public stages, songs and clips", async () => {
+  const s = await siteStats(db);
+  expect(s).toMatchObject({ stages: 4, songs: 3 });
+  const all = await searchPerformances(db, { type: "all", sort: "latest", page: 1 });
+  expect(s.clips).toBe(all.rows.reduce((a, r) => a + r.clipCount, 0));
 });

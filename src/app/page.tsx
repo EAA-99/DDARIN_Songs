@@ -3,13 +3,28 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
 import { Rankings, RankingsSkeleton } from "@/components/Rankings";
-import { ControlsSkeleton, SearchControls } from "@/components/SearchControls";
+import { FilterBar, FilterSkeleton, SearchBox, SearchSkeleton } from "@/components/SearchControls";
 import { getDb } from "@/db";
+import { PROFILE_IMG } from "@/lib/links";
+import { cachedStats } from "@/server/cached";
 import { clipsForPerformances, PAGE_SIZE, searchPerformances } from "@/server/queries";
 
 type Search = { q?: string; type?: string; sort?: string; page?: string };
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+async function Stats() {
+  await connection();
+  const s = await cachedStats();
+  const fmt = (n: number) => n.toLocaleString("ko-KR");
+  return (
+    <dl className="intro__stats num">
+      <div><dt>무대</dt><dd>{fmt(s.stages)}</dd></div>
+      <div><dt>곡</dt><dd>{fmt(s.songs)}</dd></div>
+      <div><dt>클립</dt><dd>{fmt(s.clips)}</dd></div>
+    </dl>
+  );
+}
 
 async function Results({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await connection();
@@ -52,14 +67,30 @@ async function Results({ searchParams }: { searchParams: Promise<Record<string, 
 
 export default function Home({ searchParams }: PageProps<"/">) {
   return (
-    <div className="home">
-      <section aria-label="노래 클립 목록">
-        <Suspense fallback={<ControlsSkeleton />}><SearchControls /></Suspense>
-        <Suspense fallback={<ListSkeleton />}><Results searchParams={searchParams} /></Suspense>
+    <>
+      <section className="intro">
+        <div className="wrap intro__inner">
+          <div className="intro__head">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="intro__avatar" src={PROFILE_IMG} alt="따린" width={72} height={72} referrerPolicy="no-referrer" />
+            <div>
+              <h1>따린이 부른 노래, 한곳에서</h1>
+              <p>시청자들이 남긴 SOOP 클립을 곡별로 모았어요. 곡명이나 가수를 검색해 보세요.</p>
+            </div>
+          </div>
+          <Suspense fallback={<SearchSkeleton />}><SearchBox /></Suspense>
+          <Suspense fallback={<dl className="intro__stats" />}><Stats /></Suspense>
+        </div>
       </section>
-      <aside className="home__side" aria-label="순위">
-        <Suspense fallback={<RankingsSkeleton />}><Rankings /></Suspense>
-      </aside>
-    </div>
+      <div className="wrap home">
+        <section aria-label="노래 클립 목록">
+          <Suspense fallback={<FilterSkeleton />}><FilterBar /></Suspense>
+          <Suspense fallback={<ListSkeleton />}><Results searchParams={searchParams} /></Suspense>
+        </section>
+        <aside className="home__side" aria-label="순위">
+          <Suspense fallback={<RankingsSkeleton />}><Rankings /></Suspense>
+        </aside>
+      </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Player } from "@/components/Player";
 import { PlayerProvider } from "@/components/PlayerProvider";
+import { CHANNEL_URL, PROFILE_IMG } from "@/lib/links";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,16 +28,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         <PlayerProvider>
-          <header className="hero">
-            <div className="wrap hero__inner">
-              <div className="hero__top">
-                <Link href="/" className="brand">따린 노래 클립</Link>
-                <span className="brand__sub">SOOP 시청자 클립에서 모은 따린님의 노래</span>
-              </div>
-              <Player />
+          <header className="topbar">
+            <div className="wrap topbar__inner">
+              <Link href="/" className="brand">
+                {/* SOOP 프로필 이미지는 외부 호스트라 img를 쓴다 */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={PROFILE_IMG} alt="" width={32} height={32} referrerPolicy="no-referrer" />
+                <span>따린 노래 클립</span>
+              </Link>
+              <a className="topbar__channel" href={CHANNEL_URL} target="_blank" rel="noopener noreferrer">SOOP 방송국 ↗</a>
             </div>
+            <div className="wrap"><Player /></div>
           </header>
-          <main className="wrap">{children}</main>
+          <main className="main">{children}</main>
           <footer className="footer">
             <div className="wrap">
               팬이 만든 비공식 사이트입니다. 영상과 조회수는 SOOP 시청자 클립에서 가져오며 하루에 한 번 갱신됩니다.

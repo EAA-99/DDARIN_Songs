@@ -20,7 +20,7 @@ function Partners({ names }: { names: string[] }) {
   );
 }
 
-/** 무대 목록. 한 줄 = 무대 하나, "클립 N개"를 펼치면 클립별로 재생 */
+/** 무대 카드 격자. 카드 하나 = 무대 하나, "클립 N개"를 펼치면 클립별로 재생 */
 export function PerformanceList({ rows, clipsByStage, showSong = true }: {
   rows: PerfRow[];
   clipsByStage: Map<number, ClipItem[]>;
@@ -71,10 +71,10 @@ export function PerformanceList({ rows, clipsByStage, showSong = true }: {
   );
 }
 
-export function ListSkeleton({ rows = 5 }: { rows?: number }) {
+export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div className="stages" aria-busy="true" aria-label="불러오는 중">
-      {Array.from({ length: rows }, (_, i) => <div key={i} className="skeleton" style={{ height: 92 }} />)}
+      {Array.from({ length: rows }, (_, i) => <div key={i} className="skeleton stage-skeleton" />)}
     </div>
   );
 }

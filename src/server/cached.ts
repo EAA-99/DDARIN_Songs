@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 import { getDb } from "@/db";
-import { artistPage, songPage, topSongs, topViews } from "./queries";
+import { artistPage, siteStats, songPage, topSongs, topViews } from "./queries";
 
 /** 공개 화면용 캐시(데이터는 하루 한 번 바뀐다). 수집·관리자 변경 뒤 "catalog" 태그를 비운다. */
 export const CATALOG_TAG = "catalog";
@@ -29,4 +29,11 @@ export async function cachedArtistPage(name: string) {
   cacheLife("hours");
   cacheTag(CATALOG_TAG);
   return artistPage(getDb(), name);
+}
+
+export async function cachedStats() {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CATALOG_TAG);
+  return siteStats(getDb());
 }

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 
 type Current = { titleNo: number; label: string } | null;
-type PlayerCtx = { current: Current; play: (titleNo: number, label: string) => void };
+type PlayerCtx = { current: Current; play: (titleNo: number, label: string) => void; stop: () => void };
 
 const Ctx = createContext<PlayerCtx | null>(null);
 
@@ -11,7 +11,8 @@ const Ctx = createContext<PlayerCtx | null>(null);
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<Current>(null);
   const play = useCallback((titleNo: number, label: string) => setCurrent({ titleNo, label }), []);
-  const value = useMemo(() => ({ current, play }), [current, play]);
+  const stop = useCallback(() => setCurrent(null), []);
+  const value = useMemo(() => ({ current, play, stop }), [current, play, stop]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
