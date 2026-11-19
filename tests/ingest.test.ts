@@ -146,3 +146,12 @@ test("chat clips that merely contain a hyphen are not published by the broadcast
   await ingestClips(db, [soop(1, "[클립][단츄 마크 운동회] 7스테이지 믿음 - 선수 머독, 오더 민결희 / 민결희 : 쭉쭉빵빵")], now, undefined, details({ 1: mine(50, 10) }));
   expect((await clip(1)).status).toBe("review");
 });
+
+test("'곡명 불러주는 따린' is published when the song already has a public stage", async () => {
+  await ingestClips(db, [soop(1, "따린 - 멋진헛간", "2023-07-10 19:48:00")], now);
+  await ingestClips(db, [soop(2, "오대천왕 - 멋진헛간 짧게 불러주는 따린", "2026-07-15 23:34:00")], now);
+  expect(await clip(2)).toMatchObject({ status: "auto", performers: ["따린"], songId: (await clip(1)).songId });
+  // 공개 무대가 없는 곡은 아직 모르는 곡
+  await ingestClips(db, [soop(3, "오대천왕 - 처음듣는곡 불러주는 따린", "2026-07-15 23:40:00")], now);
+  expect((await clip(3)).status).toBe("review");
+});

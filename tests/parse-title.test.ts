@@ -62,7 +62,8 @@ test("names separated only by spaces", () => {
 test("filler words after 따린 are ignored", () => {
   expect(parseTitle("따린 노래방 - Lucky (Jason Mraz)"))
     .toEqual({ status: "auto", songTitle: "Lucky", originalArtist: "Jason Mraz", performers: ["따린"] });
-  expect(parseTitle("[클립]따린의 김건모 - 서울의 달").status).toBe("review");
+  // 따린 뒤 이름 하나는 원곡 가수로 본다(실제 제목 측정, 2026-11-19)
+  expect(parseTitle("[클립]따린의 김건모 - 서울의 달").status).toBe("auto");
 });
 
 test("date tail is removed before reading the artist", () => {
@@ -112,4 +113,56 @@ test.each([
   ["가수 - 이건 곡명이라기엔 너무너무너무너무너무너무 긴 문장으로 된 잡담 클립 제목입니다", false],
 ])("looks like a song title: %s → %s", (raw, expected) => {
   expect(looksLikeSongTitle(raw)).toBe(expected);
+});
+
+// ── 실제 제목에서 자주 '확인 필요'로 빠지던 형식 ─────────────────────────
+const solo = (songTitle: string, originalArtist: string | null = null): Parsed =>
+  ({ status: "auto", songTitle, originalArtist, performers: ["따린"] });
+
+test.each<[string, Parsed]>([
+  // A. "따린 / 곡명 - 가수"
+  ["[클립]따린 / Snowman - Sia", solo("Snowman", "Sia")],
+  ["[클립]따린 / 사건의 지평선 - 윤하", solo("사건의 지평선", "윤하")],
+  ["[클립]따린 / When I Was Your Man - Bruno Mars | 빵터진 따린이", solo("When I Was Your Man", "Bruno Mars")],
+  ["[클립]따린 / Dance Monkey - Tones And I to 빙밍", solo("Dance Monkey", "Tones And I")],
+  ["[클립]따린 / 시계태엽 - 임정희 1절", solo("시계태엽", "임정희")],
+  // B. 설명 + 따린
+  ["나만 듣는다 따린 - 데스노트", solo("데스노트")],
+  ["내가 볼려고 딴 따린 - 렛잇고", solo("렛잇고")],
+  ["[클립]소나랜드 노래자랑 결승전 따린-금지된사랑", solo("금지된사랑")],
+  ["[클립]버튜버 노래자랑) 11번 따린-연", solo("연")],
+  // C. 곡명 뒤 "/ 설명"
+  ["[클립]따린-이름에게 / 💙 따린 1st 콘서트 [Dear. Friends] 💙", solo("이름에게")],
+  ["[클립][백팀 싱크룸]구슬요x양도끼x따린 - 블랙맘바(에스파) / 따린 시점",
+    { status: "auto", songTitle: "블랙맘바", originalArtist: "에스파", performers: ["구슬요", "양도끼", "따린"] }],
+  // D. "따린 가수 - 곡명"
+  ["따린 거미 - 어른아이", solo("어른아이", "거미")],
+  ["[클립]따린의 김건모 - 서울의 달", solo("서울의 달", "김건모")],
+  ["따린 심규선 - 소로 (小路)", solo("소로", "심규선")],
+  // E. "부르는 따린" 꼬리
+  ["오대천왕 - 멋진헛간 짧게 불러주는 따린", { status: "review", songTitle: "멋진헛간", originalArtist: null, performers: ["따린"] }],
+])("common title form: %s", (raw, expected) => {
+  expect(parseTitle(raw)).toEqual(expected);
+});
+
+test("a singing tail is published when the song is already known", () => {
+  expect(parseTitle("오대천왕 - 멋진헛간 짧게 불러주는 따린", undefined, new Set(["멋진헛간"])))
+    .toEqual(solo("멋진헛간"));
+});
+
+test("forms that must stay as they were", () => {
+  const partners = new Set(["구슬요"]);
+  // 모르는 이름 + 따린은 함께 부른 사람일 수 있다
+  expect(parseTitle("가습기 따린 - 숨").status).toBe("review");
+  // 아는 사람과의 듀엣
+  expect(parseTitle("따린 구슬요 - 8282", partners)).toEqual(
+    { status: "auto", songTitle: "8282", originalArtist: null, performers: ["따린", "구슬요"] });
+  // 듣기만 하는 클립
+  expect(parseTitle("[마카오톡]나비 - Daisy 듣는 따린").status).toBe("review");
+  // 곡명 안의 붙은 슬래시는 그대로
+  expect(parseTitle("따린 - AC/DC").songTitle).toBe("AC/DC");
+});
+
+test("'따린/이름' without spaces names a partner, not a song", () => {
+  expect(parseTitle("[클립]따린/미르 -Never Enough").status).not.toBe("auto");
 });

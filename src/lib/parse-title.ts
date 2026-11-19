@@ -1,3 +1,5 @@
+import { norm } from "./normalize";
+
 export type Parsed = {
   status: "auto" | "review" | "not_song";
   songTitle: string | null;
@@ -100,6 +102,46 @@ function splitSongArtist(side: string): { song: string; artist: string | null; w
   return { song: m[1].trim(), artist: cleanArtist(inner) || null, with: [] };
 }
 
+/** "곡명 / 설명"의 설명을 뗀다. "K/DA"처럼 붙은 슬래시는 곡명의 일부로 둔다. */
+function cutNote(songSide: string): string {
+  return songSide.split(/\s+\/|\/\s+/)[0].trim();
+}
+
+/** 가수 뒤 꼬리를 뗀다: "Bruno Mars | 빵터진 따린이", "Tones And I to 빙밍" */
+function cutArtistTail(a: string): string {
+  return cleanArtist(a.split(/\s+\|/)[0].replace(/\s+-?\s*to\s+.*$/i, ""));
+}
+
+// "설명 따린"의 설명으로 볼 단서: 숫자·닫는 괄호, 행사 이름, 동사·관형형 끝("듣는다", "볼려고 딴")
+const DESC_CUE = /\d|\)|노래자랑|콘서트|결승전|본선|무대|앵콜|(는|은|다|딴|든|던|한|난)$/;
+
+/**
+ * 사람 쪽이 사실상 따린님 혼자인 형식. 곡명 쪽과 따로 원곡 가수를 밝히기도 한다.
+ *  - "따린 거미", "따린의 김건모" → 원곡 가수
+ *  - "나만 듣는다 따린", "소나랜드 노래자랑 따린" → 앞은 설명
+ */
+function soloPhrase(side: string, partners?: ReadonlySet<string>): { artist: string | null } | null {
+  if (NAME_SPLIT.test(side)) return null;
+  const tokens = side.replace(COVER, " ").split(/\s+/).filter((t) => t && !FILLERS.includes(t.toLowerCase()));
+  if (tokens.length < 2) return null;
+  const isMe = (t: string) => new RegExp(`^${ME}(님)?$`).test(t);
+  if (/^따린(님|의)?$/.test(tokens[0])) {
+    // 뒤에 이름이 둘 이상이면 함께 부른 사람일 수 있다
+    const rest = tokens.slice(1);
+    if (rest.length !== 1 || isMe(rest[0]) || partners?.has(rest[0].replace(/님$/, ""))) return null;
+    return { artist: rest[0] };
+  }
+  if (isMe(tokens[tokens.length - 1])) {
+    const desc = tokens.slice(0, -1);
+    if (desc.some((t) => partners?.has(t.replace(/님$/, "")))) return null;
+    if (desc.some((t) => DESC_CUE.test(t))) return { artist: null };
+  }
+  return null;
+}
+
+// "멋진헛간 짧게 불러주는 따린": 부르는 모습을 설명하는 꼬리
+const SINGING_TAIL = /^(.+?)\s+(?:(?:짧게|살짝|잠깐|같이|다시)\s+)?(?:불러주는|불러준|부르는|부른|열창하는)\s+따린(?:님)?$/;
+
 const SONG_PART_MAX = 40;
 
 /**
@@ -137,7 +179,7 @@ export function collabSignal(raw: string, partners?: ReadonlySet<string>): boole
 
 /** 클립 제목에서 곡명·원곡 가수·부른 사람을 뽑고 노래 여부를 판단한다(스펙 6장).
  *  partners: 따린님과 함께 부른 적 있는 사람들. 이들만 적힌 "이름 - 곡명"은 다른 사람의 무대로 본다. */
-export function parseTitle(raw: string, partners?: ReadonlySet<string>): Parsed {
+export function parseTitle(raw: string, partners?: ReadonlySet<string>, knownSongs?: ReadonlySet<string>): Parsed {
   if (NOT_SONG_WORDS.some((w) => raw.includes(w))) return NOT_SONG;
   const tagged = bracketPeople(raw);
   if (tagged.length && !tagged.includes(ME)) return NOT_SONG;
@@ -147,6 +189,20 @@ export function parseTitle(raw: string, partners?: ReadonlySet<string>): Parsed 
   const left = s.slice(0, at).trim();
   const right = s.slice(at + 1).trim();
   if (!left || !right) return NOT_SONG;
+
+  // "따린 / 곡명 - 가수". 띄어쓰지 않은 "따린/미르"는 함께 부른 사람이다
+  const slashed = left.match(new RegExp(`^${ME}(?:님)?\\s+/\\s+(.+)$`));
+  if (slashed) {
+    const { song, artist } = splitSongArtist(slashed[1]);
+    if (song) return { status: "auto", songTitle: song, originalArtist: cutArtistTail(right) || artist, performers: [ME] };
+  }
+  // "(무엇) - 곡명 짧게 불러주는 따린": 왼쪽은 프로그램 이름 등이라 버린다. 이미 아는 곡이면 공개
+  const tail = left.includes(ME) ? null : right.match(SINGING_TAIL);
+  if (tail) {
+    const song = splitSongArtist(tail[1]).song;
+    const known = knownSongs?.has(norm(song));
+    return { status: known ? "auto" : "review", songTitle: song, originalArtist: null, performers: [ME] };
+  }
 
   let songSide: string;
   let peopleSide: string;
@@ -166,7 +222,14 @@ export function parseTitle(raw: string, partners?: ReadonlySet<string>): Parsed 
       : { status: "review", songTitle: song, originalArtist: cleanArtist(left), performers: [] };
   }
 
+  songSide = cutNote(songSide);
   const { song, artist, with: partnersInTitle } = splitSongArtist(songSide);
+  // "곡 - Daisy 듣는 따린"처럼 뒤쪽 설명은 노래가 아닐 수 있어 앞쪽 사람만 본다
+  const alone = peopleSide === left ? soloPhrase(peopleSide, partners) : null;
+  if (alone && song && !song.includes(ME)) {
+    // 사람 쪽에서 밝힌 가수가 있으면 곡명 괄호는 다른 표기("소로 (小路)")로 본다
+    return { status: "auto", songTitle: song, originalArtist: alone.artist ?? artist, performers: [ME] };
+  }
   const people = readPeople(peopleSide, partners);
   const performers = [...new Set([...people.names, ...partnersInTitle])];
   if (!performers.includes(ME)) return NOT_SONG;

@@ -1,6 +1,6 @@
-import { and, between, eq, inArray, ne } from "drizzle-orm";
+import { and, between, eq, gt, inArray, ne } from "drizzle-orm";
 import type { Db } from "@/db";
-import { clips } from "@/db/schema";
+import { clips, performances, songs } from "@/db/schema";
 import { collabSignal, looksLikeSongTitle, parseTitle, type Parsed } from "@/lib/parse-title";
 import type { ClipDetail, SoopClip } from "@/lib/soop";
 import { assignPerformance, findOrCreateSong, guessArtist, PUBLIC_STATUSES, refreshPerformance } from "./catalog";
@@ -15,6 +15,13 @@ export async function loadPartners(db: Db): Promise<Set<string>> {
   const rows = await db.select({ p: clips.performers }).from(clips)
     .where(inArray(clips.status, [...PUBLIC_STATUSES]));
   return new Set(rows.flatMap((r) => r.p).filter((n) => n !== ME));
+}
+
+/** 공개 무대가 있는 곡의 정규화 곡명("곡명 불러주는 따린" 같은 제목을 확신하는 데 쓴다) */
+async function loadKnownSongs(db: Db): Promise<Set<string>> {
+  const rows = await db.selectDistinct({ t: songs.titleNorm }).from(songs)
+    .innerJoin(performances, and(eq(performances.songId, songs.id), gt(performances.clipCount, 0)));
+  return new Set(rows.map((r) => r.t));
 }
 
 async function songFor(db: Db, p: Parsed): Promise<number | null> {
@@ -33,6 +40,7 @@ export async function ingestClips(
 ): Promise<{ inserted: number; updated: number }> {
   if (list.length === 0) return { inserted: 0, updated: 0 };
   const partners = knownPartners ?? (await loadPartners(db));
+  const knownSongs = await loadKnownSongs(db);
   const existing = new Map((await db.select().from(clips)
     .where(inArray(clips.titleNo, list.map((c) => c.titleNo)))).map((r) => [r.titleNo, r]));
   const touched = new Set<number>();
@@ -53,7 +61,7 @@ export async function ingestClips(
       updated++;
       continue;
     }
-    const p = parseTitle(s.title, partners);
+    const p = parseTitle(s.title, partners, knownSongs);
     const wantDetail = fetchDetail && (p.status !== "not_song" || collabSignal(s.title, partners));
     const detail = wantDetail ? await fetchDetail(s.titleNo) : null;
     const songId = await songFor(db, p);
