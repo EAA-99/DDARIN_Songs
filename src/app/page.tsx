@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
 import { Rankings, RankingsSkeleton } from "@/components/Rankings";
 import { FilterBar, FilterSkeleton, SearchBox, SearchSkeleton } from "@/components/SearchControls";
+import { ViewToggle } from "@/components/ViewToggle";
 import { getDb } from "@/db";
 import { PROFILE_IMG } from "@/lib/links";
 import { cachedStats } from "@/server/cached";
@@ -51,9 +52,12 @@ async function Results({ searchParams }: { searchParams: Promise<Record<string, 
   };
   return (
     <>
-      <p className="result-meta num">
-        곡 {songs.toLocaleString("ko-KR")}개 · 클립 {clips.toLocaleString("ko-KR")}개{s.q && <> · ‘{s.q}’ 검색 결과</>}
-      </p>
+      <div className="result-bar">
+        <p className="result-meta num">
+          곡 {songs.toLocaleString("ko-KR")}개 · 클립 {clips.toLocaleString("ko-KR")}개{s.q && <> · ‘{s.q}’ 검색 결과</>}
+        </p>
+        <ViewToggle />
+      </div>
       <PerformanceList rows={rows} clipsByStage={clipsByStage} />
       {pages > 1 && (
         <nav className="pager num" aria-label="페이지">

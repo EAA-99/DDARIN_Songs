@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
+import { ViewToggle } from "@/components/ViewToggle";
 import { getDb } from "@/db";
 import { artistHref, songHref } from "@/lib/links";
 import { cachedSongPage } from "@/server/cached";
@@ -39,6 +40,7 @@ async function Song({ params, searchParams }: Props) {
       <div className="toolbar" style={{ marginBottom: 12 }}>
         <Link className="chip" aria-pressed={sort === "latest"} href={songHref(data.song.slug)}>최신순</Link>
         <Link className="chip" aria-pressed={sort === "views"} href={`${songHref(data.song.slug)}?sort=views`}>조회수순</Link>
+        <ViewToggle />
       </div>
       <PerformanceList rows={data.performances} clipsByStage={clipsByStage} showSong={false} />
     </>

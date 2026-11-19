@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Player } from "@/components/Player";
 import { PlayerProvider } from "@/components/PlayerProvider";
+import { VIEW_INIT_SCRIPT } from "@/components/ViewToggle";
 import { CHANNEL_URL, PROFILE_IMG } from "@/lib/links";
 import "./globals.css";
 
@@ -19,8 +20,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: VIEW_INIT_SCRIPT }} />
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
