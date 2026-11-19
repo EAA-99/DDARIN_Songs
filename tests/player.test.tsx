@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, test } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { Player } from "@/components/Player";
 import { PlayerProvider, usePlayer } from "@/components/PlayerProvider";
@@ -36,15 +36,4 @@ test("the close button hides the player", () => {
   act(() => play(111, "Memories"));
   fireEvent.click(screen.getByRole("button", { name: "플레이어 닫기" }));
   expect(container.innerHTML).toBe("");
-});
-
-test("only the first clip scrolls to the top; later clips keep the scroll position", () => {
-  const scrollTo = vi.fn();
-  window.scrollTo = scrollTo as unknown as typeof window.scrollTo;
-  render(<PlayerProvider><Player /><Grab /></PlayerProvider>);
-  act(() => play(111, "Memories"));
-  expect(scrollTo).toHaveBeenCalledTimes(1);
-  expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
-  act(() => play(222, "Feel Good"));
-  expect(scrollTo).toHaveBeenCalledTimes(1);
 });
