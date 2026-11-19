@@ -144,12 +144,16 @@ const SINGING_TAIL = /^(.+?)\s+(?:(?:짧게|살짝|잠깐|같이|다시)\s+)?(?:
 
 const SONG_PART_MAX = 40;
 
+// 방송 행사·콘텐츠 클립에 쓰이는 말: "7스테이지 믿음 - 선수 머독, 오더 민결희 2회차", "집밥니선생 -수미편- 심사위원 참가!"
+const EVENT_WORDS = /회차|참가|심사위원|스테이지|운동회|선수/;
+
 /**
  * 방송 정보로 자동 공개하기 전 확인: 대사 인용(:)·물음표가 없고, "/ 설명" 앞의 곡명 부분이 너무 길지 않은가.
  * "비밀 얘기 - … / 머독 : …" 같은 잡담 클립이 "가수 - 곡명"처럼 보이는 것을 거른다.
  */
 export function looksLikeSongTitle(raw: string): boolean {
   if (/[:：?？]/.test(raw)) return false;
+  if (EVENT_WORDS.test(raw)) return false;
   const s = stripDecorations(raw);
   const at = separatorIndex(s);
   if (at < 0) return false;
