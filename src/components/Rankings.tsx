@@ -8,7 +8,7 @@ import { MiniPlay } from "./PlayButtons";
 import { RankingTabs } from "./RankingTabs";
 
 function ViewList({ rows }: { rows: PerfRow[] }) {
-  if (rows.length === 0) return <p className="rank-empty">이 기간에 올라온 무대가 아직 없어요</p>;
+  if (rows.length === 0) return <p className="rank-empty">이 기간에 올라온 노래가 아직 없어요</p>;
   return (
     <ol className="rank-list">
       {rows.map((r) => (
@@ -26,7 +26,7 @@ function ViewList({ rows }: { rows: PerfRow[] }) {
 export async function Rankings() {
   await connection();
   const { week, month, all, songs } = await cachedRankings();
-  const songList = songs.length === 0 ? <p className="rank-empty">아직 집계할 무대가 없어요</p> : (
+  const songList = songs.length === 0 ? <p className="rank-empty">아직 집계할 노래가 없어요</p> : (
     <ol className="rank-list">
       {songs.map((s) => (
         <li key={s.slug} className="rank-item">

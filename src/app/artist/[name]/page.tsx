@@ -25,15 +25,17 @@ async function Artist({ params }: Props) {
   const data = await cachedArtistPage(decodeURIComponent(name));
   if (!data) notFound();
   const clipsByStage = await clipsForPerformances(db, data.asPartner.map((r) => r.id));
-  const stages = data.asOriginal.reduce((a, s) => a + s.performances, 0);
+  const originalClips = data.asOriginal.reduce((a, s) => a + s.clips, 0);
+  const partnerSongs = new Set(data.asPartner.map((r) => r.songSlug)).size;
+  const partnerClips = data.asPartner.reduce((a, r) => a + r.clipCount, 0);
   return (
     <>
       <header className="page-head">
         <h1>{data.name}</h1>
         <p className="num">
-          {data.asOriginal.length > 0 && <>따린님이 부른 곡 <strong>{data.asOriginal.length}곡</strong> · 무대 {stages}번</>}
+          {data.asOriginal.length > 0 && <>따린님이 부른 곡 <strong>{data.asOriginal.length}곡</strong> · 클립 {originalClips}개</>}
           {data.asOriginal.length > 0 && data.asPartner.length > 0 && " · "}
-          {data.asPartner.length > 0 && <>따린님과 함께한 무대 <strong>{data.asPartner.length}번</strong></>}
+          {data.asPartner.length > 0 && <>따린님과 함께 부른 곡 <strong>{partnerSongs}곡</strong> · 클립 {partnerClips}개</>}
         </p>
       </header>
       {data.asOriginal.length > 0 && (
@@ -41,14 +43,14 @@ async function Artist({ params }: Props) {
           <h2 className="section-title">따린님이 부른 {data.name}의 곡</h2>
           <ul className="song-list">
             {data.asOriginal.map((s) => (
-              <li key={s.slug}><Link href={songHref(s.slug)}>{s.title}<span className="num">무대 {s.performances}번</span></Link></li>
+              <li key={s.slug}><Link href={songHref(s.slug)}>{s.title}<span className="num">클립 {s.clips}개</span></Link></li>
             ))}
           </ul>
         </>
       )}
       {data.asPartner.length > 0 && (
         <>
-          <h2 className="section-title">따린님과 함께 부른 무대</h2>
+          <h2 className="section-title">따린님과 함께 부른 노래</h2>
           <PerformanceList rows={data.asPartner} clipsByStage={clipsByStage} />
         </>
       )}

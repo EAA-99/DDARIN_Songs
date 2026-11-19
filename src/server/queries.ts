@@ -75,17 +75,22 @@ function textMatch(q: string): SQL | undefined {
 /** 첫 화면 목록: 무대 단위, 검색(곡명·원곡 가수·부른 사람) + 솔로/듀엣 + 최신순/조회수순, 20개씩 */
 export async function searchPerformances(db: Db, p: {
   q?: string; type?: "all" | "solo" | "duet"; sort?: "latest" | "views"; page?: number;
-}): Promise<{ rows: PerfRow[]; total: number }> {
+}): Promise<{ rows: PerfRow[]; total: number; songs: number; clips: number }> {
   const where = and(
     p.q ? textMatch(p.q) : undefined,
     p.type === "solo" ? eq(performances.isDuet, false) : p.type === "duet" ? eq(performances.isDuet, true) : undefined,
   );
   const page = Math.max(1, p.page ?? 1);
   const rows = await selectPerfs(db, where, ORDER[p.sort ?? "latest"], PAGE_SIZE, (page - 1) * PAGE_SIZE);
-  const [{ n }] = await db.select({ n: count() }).from(performances)
+  // total은 페이지 계산용(무대 수), songs·clips는 시청자 화면에 보이는 숫자
+  const [c] = await db.select({
+    n: count(),
+    songs: sql<number>`count(distinct ${performances.songId})`.mapWith(Number),
+    clips: sql<number>`coalesce(sum(${performances.clipCount}), 0)`.mapWith(Number),
+  }).from(performances)
     .innerJoin(songs, eq(songs.id, performances.songId))
     .where(and(gt(performances.clipCount, 0), where));
-  return { rows, total: n };
+  return { rows, total: c.n, songs: c.songs, clips: c.clips };
 }
 
 /** 무대를 펼쳤을 때 보이는 공개 클립(조회수순) */
@@ -163,7 +168,10 @@ export async function artistPage(db: Db, name: string) {
   const n = norm(name);
   if (!n) return null;
   const stages = count(performances.id);
-  const asOriginal = await db.select({ title: songs.title, slug: songs.slug, performances: stages })
+  const asOriginal = await db.select({
+    title: songs.title, slug: songs.slug, performances: stages,
+    clips: sql<number>`sum(${performances.clipCount})`.mapWith(Number),
+  })
     .from(songs).innerJoin(performances, and(eq(performances.songId, songs.id), gt(performances.clipCount, 0)))
     .where(eq(songs.artistNorm, n)).groupBy(songs.id).orderBy(desc(stages), asc(songs.title));
   const asPartner = n === norm("따린") ? [] : await selectPerfs(db,

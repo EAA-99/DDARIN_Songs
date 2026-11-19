@@ -125,3 +125,13 @@ test("site stats count public stages, songs and clips", async () => {
   const all = await searchPerformances(db, { type: "all", sort: "latest", page: 1 });
   expect(s.clips).toBe(all.rows.reduce((a, r) => a + r.clipCount, 0));
 });
+
+test("search also counts distinct songs and clips for viewers", async () => {
+  const r = await searchPerformances(db, { q: "memories" });
+  expect(r).toMatchObject({ total: 2, songs: 1, clips: 5 });
+});
+
+test("artist page lists songs with their clip counts", async () => {
+  const a = await artistPage(db, "윤미래");
+  expect(a?.asOriginal).toEqual([expect.objectContaining({ title: "Memories", clips: 5 })]);
+});

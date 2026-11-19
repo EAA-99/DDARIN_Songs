@@ -15,7 +15,7 @@ export function RankingTabs({ lists }: { lists: Record<Tab, ReactNode> }) {
           <button key={v} type="button" aria-pressed={tab === v} onClick={() => setTab(v)}>{label}</button>
         ))}
       </div>
-      <p className="rank-hint">{tab === "songs" ? "무대 수 기준" : "가장 많이 본 무대 · 같은 곡은 한 번만"}</p>
+      <p className="rank-hint">{tab === "songs" ? "부른 횟수 기준" : "조회수 높은 순 · 같은 곡은 한 번만"}</p>
       {lists[tab]}
     </>
   );
