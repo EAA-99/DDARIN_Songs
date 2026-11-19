@@ -5,6 +5,7 @@ import { norm, slugify } from "@/lib/normalize";
 
 export const PUBLIC_STATUSES = ["auto", "confirmed"] as const;
 const STAGE_WINDOW_SEC = 3 * 3600;
+const SAME_REPLAY_WINDOW_SEC = 600;
 
 async function uniqueSlug(db: Db, title: string): Promise<string> {
   const base = slugify(title);
@@ -41,15 +42,25 @@ export async function guessArtist(db: Db, title: string): Promise<string | null>
   return row?.a ?? null;
 }
 
-/** 같은 곡이고 등록 시각이 3시간 안인 클립의 무대에 넣는다(가장 가까운 클립 기준). 없으면 새 무대. */
+/**
+ * 무대 배정(스펙 5장): 같은 곡이고 같은 원본 다시보기의 10분 안 지점이면 같은 무대.
+ * 원본 정보가 없으면 등록 시각 3시간 안(가장 가까운 클립 기준). 해당이 없으면 새 무대.
+ */
 export async function assignPerformance(db: Db, clipNo: number): Promise<number> {
   const [clip] = await db.select().from(clips).where(eq(clips.titleNo, clipNo));
   if (!clip?.songId) throw new Error(`곡이 없는 클립은 무대에 넣을 수 없습니다: ${clipNo}`);
-  const t = clip.regDate.toISOString();
-  const [near] = await db.select({ p: clips.performanceId }).from(clips).where(and(
-    eq(clips.songId, clip.songId), isNotNull(clips.performanceId), ne(clips.titleNo, clipNo),
-    sql`abs(extract(epoch from ${clips.regDate} - ${t}::timestamptz)) <= ${STAGE_WINDOW_SEC}`,
-  )).orderBy(sql`abs(extract(epoch from ${clips.regDate} - ${t}::timestamptz))`).limit(1);
+  const others = and(eq(clips.songId, clip.songId), isNotNull(clips.performanceId), ne(clips.titleNo, clipNo));
+  let near: { p: number | null } | undefined;
+  if (clip.sourceVod !== null && clip.seekSec !== null) {
+    [near] = await db.select({ p: clips.performanceId }).from(clips).where(and(others,
+      eq(clips.sourceVod, clip.sourceVod), sql`abs(${clips.seekSec} - ${clip.seekSec}) <= ${SAME_REPLAY_WINDOW_SEC}`,
+    )).orderBy(sql`abs(${clips.seekSec} - ${clip.seekSec})`).limit(1);
+  } else {
+    const t = clip.regDate.toISOString();
+    [near] = await db.select({ p: clips.performanceId }).from(clips).where(and(others,
+      sql`abs(extract(epoch from ${clips.regDate} - ${t}::timestamptz)) <= ${STAGE_WINDOW_SEC}`,
+    )).orderBy(sql`abs(extract(epoch from ${clips.regDate} - ${t}::timestamptz))`).limit(1);
+  }
   let id = near?.p ?? null;
   if (id === null) {
     const [row] = await db.insert(performances).values({ songId: clip.songId, startedAt: clip.regDate })

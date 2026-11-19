@@ -162,3 +162,14 @@ test("a run stops cleanly at its deadline and releases the lock", async () => {
   expect(run.finishedAt).not.toBeNull();
   expect((await runDaily(db, deps(fakeSoop([]).fetchPage), "daily")).status).not.toBe("busy");
 });
+
+// ── 클립 상세도 예산·기한 안에서 ────────────────────────────────────
+test("detail lookups count toward the request budget", async () => {
+  const data = Array.from({ length: 10 }, (_, i) => ({ ...mk(i + 1, new Date(NOW.getTime() - (i + 1) * 3600_000)), title: `Bruno Mars - Song ${i}` }));
+  const s = fakeSoop(data);
+  const asked: number[] = [];
+  const r = await runDaily(db, { ...deps(s.fetchPage, 4), fetchDetail: async (no) => { asked.push(no); return { sourceBj: "insome0319", sourceVod: 1, seekSec: no * 1000 }; } }, "daily");
+  expect(r.status).toBe("ok");
+  expect(asked.length).toBeGreaterThan(0);
+  expect(s.calls.length + asked.length).toBeLessThanOrEqual(4);
+});

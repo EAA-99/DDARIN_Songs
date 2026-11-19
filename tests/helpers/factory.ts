@@ -25,6 +25,8 @@ export async function insertClip(db: Db, v: ClipInput = {}): Promise<number> {
     isDuet: v.isDuet ?? (v.performers ?? ["따린"]).length > 1,
     performanceId: v.performanceId ?? null,
     locked: v.locked ?? false,
+    sourceVod: v.sourceVod ?? null,
+    seekSec: v.seekSec ?? null,
     firstSeenAt: regDate,
     viewsUpdatedAt: regDate,
   });

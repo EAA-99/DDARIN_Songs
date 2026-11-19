@@ -100,6 +100,41 @@ function splitSongArtist(side: string): { song: string; artist: string | null; w
   return { song: m[1].trim(), artist: cleanArtist(inner) || null, with: [] };
 }
 
+const SONG_PART_MAX = 40;
+
+/**
+ * 방송 정보로 자동 공개하기 전 확인: 대사 인용(:)·물음표가 없고, "/ 설명" 앞의 곡명 부분이 너무 길지 않은가.
+ * "비밀 얘기 - … / 머독 : …" 같은 잡담 클립이 "가수 - 곡명"처럼 보이는 것을 거른다.
+ */
+export function looksLikeSongTitle(raw: string): boolean {
+  if (/[:：?？]/.test(raw)) return false;
+  const s = stripDecorations(raw);
+  const at = separatorIndex(s);
+  if (at < 0) return false;
+  const song = s.slice(at + 1).split("/")[0].replace(/\([^)]*\)/g, "").trim(); // 괄호 메모(feat. 등)는 빼고 잰다
+  return song.length > 0 && song.length <= SONG_PART_MAX;
+}
+
+/**
+ * 합방 신호: 제목이 다른 사람이 따린님 없이 노래했다고 말하는가(다른 이름만 적힌 대괄호·Cover, 함께 부른 사람만 적힌 제목).
+ * 따린님이 함께 부른 듀엣은 신호가 아니다. 같은 다시보기에 이런 클립이 있으면 그 방송은 합방으로 본다(스펙 6장 7).
+ */
+export function collabSignal(raw: string, partners?: ReadonlySet<string>): boolean {
+  if (NOT_SONG_WORDS.some((w) => raw.includes(w))) return false;
+  const p = parseTitle(raw, partners);
+  const tagged = bracketPeople(raw);
+  if (tagged.length && !tagged.includes(ME)) return true;
+  if (p.status !== "not_song") return false;
+  const s = stripDecorations(raw);
+  const at = separatorIndex(s);
+  if (at < 0) return false;
+  const left = s.slice(0, at).trim();
+  const right = s.slice(at + 1).trim();
+  if (isPeopleSide(right) && !right.includes(ME)) return parsePeople(right).length > 0;
+  const leftNames = parsePeople(left);
+  return !!partners && leftNames.length > 0 && leftNames.every((n) => partners.has(n));
+}
+
 /** 클립 제목에서 곡명·원곡 가수·부른 사람을 뽑고 노래 여부를 판단한다(스펙 6장).
  *  partners: 따린님과 함께 부른 적 있는 사람들. 이들만 적힌 "이름 - 곡명"은 다른 사람의 무대로 본다. */
 export function parseTitle(raw: string, partners?: ReadonlySet<string>): Parsed {

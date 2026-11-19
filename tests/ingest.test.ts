@@ -92,3 +92,57 @@ test("markGone hides clips missing from a refetched range and restores them when
   await ingestClips(db, [soop(2, "[클립]따린-Feel good", "2026-11-17 01:10:00", 41)], now);
   expect((await clip(2)).status).toBe("auto");
 });
+
+// ── 방송 정보로 부른 사람 판단 ─────────────────────────────────────────
+type Detail = { sourceBj: string | null; sourceVod: number | null; seekSec: number | null };
+const details = (m: Record<number, Detail>) => async (no: number) => m[no] ?? { sourceBj: null, sourceVod: null, seekSec: null };
+const mine = (vod: number, seek: number): Detail => ({ sourceBj: "insome0319", sourceVod: vod, seekSec: seek });
+
+test("'가수 - 곡명' from a solo broadcast of 따린 is published as 따린's", async () => {
+  await ingestClips(db, [soop(1, "Bruno Mars - Grenade")], now, undefined, details({ 1: mine(10, 100) }));
+  expect(await clip(1)).toMatchObject({ status: "auto", performers: ["따린"], viaBroadcast: true, sourceVod: 10, seekSec: 100 });
+});
+
+test("in a collab broadcast it stays for review", async () => {
+  await ingestClips(db, [soop(4, "[클립]8282 - 구슬요x따린 Cover", "2026-11-15 14:00:00")], now, undefined, details({ 4: mine(20, 50) }));
+  await ingestClips(db, [
+    soop(2, "[클립]구슬요 - 안동역에서", "2026-11-15 15:00:00"), soop(3, "[로이세끼2] 성시경 - 태양계", "2026-11-15 15:10:00"),
+  ], now, undefined, details({ 2: mine(20, 900), 3: mine(20, 1500) }));
+  expect((await clip(3)).status).toBe("review");
+});
+
+test("a later collab signal sends broadcast-published clips back to review, but not locked ones", async () => {
+  await ingestClips(db, [soop(1, "Sia - Snowman", "2026-11-16 04:00:00"), soop(5, "Sam Smith - Lay Me Down", "2026-11-16 04:10:00")],
+    now, undefined, details({ 1: mine(30, 100), 5: mine(30, 700) }));
+  expect((await clip(1)).status).toBe("auto");
+  await db.update(clips).set({ locked: true, status: "confirmed" }).where(eq(clips.titleNo, 5));
+  await ingestClips(db, [soop(2, "[클립]냐냐 - 산책", "2026-11-16 05:00:00")], now, new Set(["냐냐"]), details({ 2: mine(30, 2000) }));
+  expect(await clip(1)).toMatchObject({ status: "review", performers: [], viaBroadcast: false });
+  expect((await clip(5)).status).toBe("confirmed");
+});
+
+test("duets with 따린 in a broadcast do not make it a collab broadcast", async () => {
+  await ingestClips(db, [
+    soop(1, "따린&듀엣삼촌 - Say Something [재활 노래뱅]", "2026-11-10 20:00:00"),
+    soop(2, "5 Seconds of Summer - Teeth (짧)", "2026-11-10 20:30:00"),
+  ], now, undefined, details({ 1: mine(40, 100), 2: mine(40, 2000) }));
+  expect(await clip(2)).toMatchObject({ status: "auto", viaBroadcast: true });
+});
+
+test("a clip taken from someone else's broadcast is not decided by this rule", async () => {
+  await ingestClips(db, [soop(1, "Bruno Mars - Grenade")], now, undefined,
+    details({ 1: { sourceBj: "other", sourceVod: 10, seekSec: 1 } }));
+  expect((await clip(1)).status).toBe("review");
+});
+
+test("details are fetched only for song candidates and collab signals", async () => {
+  const asked: number[] = [];
+  await ingestClips(db, [soop(1, "따린 - Feel Good"), soop(2, "[클립]사탕 따는 팁"), soop(3, "[클립]안동역에서 - 구슬요 Cover")], now, undefined,
+    async (no) => { asked.push(no); return mine(1, no); });
+  expect(asked.sort()).toEqual([1, 3]);
+});
+
+test("chat clips that merely contain a hyphen are not published by the broadcast rule", async () => {
+  await ingestClips(db, [soop(1, "[클립][단츄 마크 운동회] 7스테이지 믿음 - 선수 머독, 오더 민결희 / 민결희 : 쭉쭉빵빵")], now, undefined, details({ 1: mine(50, 10) }));
+  expect((await clip(1)).status).toBe("review");
+});

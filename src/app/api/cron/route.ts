@@ -1,6 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { getDb } from "@/db";
-import { fetchClipPage } from "@/lib/soop";
+import { fetchClipDetail, fetchClipPage } from "@/lib/soop";
 import { CATALOG_TAG } from "@/server/cached";
 import { runDaily } from "@/server/sync";
 
@@ -12,7 +12,7 @@ export async function GET(req: Request): Promise<Response> {
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const result = await runDaily(getDb(), { fetchPage: fetchClipPage, now: () => new Date() }, "daily");
+  const result = await runDaily(getDb(), { fetchPage: fetchClipPage, fetchDetail: fetchClipDetail, now: () => new Date() }, "daily");
   if (result.newClips > 0 || result.updatedViews > 0) revalidateTag(CATALOG_TAG, "max");
   return Response.json(result, { status: result.status === "error" ? 500 : 200 });
 }

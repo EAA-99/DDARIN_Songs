@@ -41,11 +41,16 @@ export const clips = pgTable("clips", {
   isDuet: boolean("is_duet").notNull().default(false),
   performanceId: integer("performance_id").references(() => performances.id),
   locked: boolean("locked").notNull().default(false),
+  // 클립 상세에서 받은 원본 방송 정보(노래 후보·합방 신호 클립만)
+  sourceBj: text("source_bj"),
+  sourceVod: bigint("source_vod", { mode: "number" }),
+  seekSec: integer("seek_sec"),
+  viaBroadcast: boolean("via_broadcast").notNull().default(false), // 혼자 한 방송이라 따린님 무대로 자동 공개한 클립
   firstSeenAt: ts("first_seen_at").notNull(),
   viewsUpdatedAt: ts("views_updated_at").notNull(),
 }, (t) => [
   index("clips_reg_date").on(t.regDate), index("clips_status").on(t.status),
-  index("clips_song").on(t.songId), index("clips_performance").on(t.performanceId),
+  index("clips_song").on(t.songId), index("clips_performance").on(t.performanceId), index("clips_source_vod").on(t.sourceVod),
 ]);
 
 export const syncRuns = pgTable("sync_runs", {

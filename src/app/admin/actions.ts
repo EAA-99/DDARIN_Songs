@@ -2,7 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { getDb } from "@/db";
-import { fetchClipPage } from "@/lib/soop";
+import { fetchClipDetail, fetchClipPage } from "@/lib/soop";
 import {
   applyArtistToSameSong, editClip, mergePerformances, mergeSongs, sameSongCandidates, setStatus, splitPerformance,
 } from "@/server/admin";
@@ -12,7 +12,7 @@ import { runBackfillStep, runDaily } from "@/server/sync";
 
 // 관리자 변경은 공개 캐시를 바로 비워 다음 방문에 반영되게 한다
 const done = () => { updateTag(CATALOG_TAG); revalidatePath("/admin"); };
-const deps = () => ({ fetchPage: fetchClipPage, now: () => new Date() });
+const deps = () => ({ fetchPage: fetchClipPage, fetchDetail: fetchClipDetail, now: () => new Date() });
 
 export async function editClipAction(titleNo: number, v: { songTitle: string; artist: string; performers: string }) {
   await requireAdmin();

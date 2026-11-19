@@ -75,3 +75,20 @@ test("refreshPerformance recomputes best clip, count and performers", async () =
   expect(p.clipCount).toBe(2);
   expect(p.isDuet).toBe(false);
 });
+
+// ── 원본 다시보기 기준 무대 묶기 ───────────────────────────────────────
+test("clips from the same replay within 10 minutes are one stage even when uploaded hours apart", async () => {
+  const s = await findOrCreateSong(db, "Snowman", null);
+  const a = await insertClip(db, { songId: s, at: "2026-11-16 04:30:00", sourceVod: 77, seekSec: 1000 });
+  const b = await insertClip(db, { songId: s, at: "2026-11-16 14:58:00", sourceVod: 77, seekSec: 1300 });
+  for (const n of [a, b]) await assignPerformance(db, n);
+  expect(await perfOf(a)).toBe(await perfOf(b));
+});
+
+test("same replay but far apart in the replay are different stages even when uploaded close together", async () => {
+  const s = await findOrCreateSong(db, "Snowman", null);
+  const a = await insertClip(db, { songId: s, at: "2026-11-16 04:30:00", sourceVod: 77, seekSec: 1000 });
+  const b = await insertClip(db, { songId: s, at: "2026-11-16 04:40:00", sourceVod: 77, seekSec: 9000 });
+  for (const n of [a, b]) await assignPerformance(db, n);
+  expect(await perfOf(a)).not.toBe(await perfOf(b));
+});

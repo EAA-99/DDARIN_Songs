@@ -74,6 +74,32 @@ export async function fetchClipPage(q: PageQuery, f: typeof fetch = fetch): Prom
   };
 }
 
+export type ClipDetail = { sourceBj: string | null; sourceVod: number | null; seekSec: number | null };
+
+const Detail = z.object({
+  result: z.number(),
+  data: z.object({
+    copyright_id: z.string().nullish(),
+    original_vod: z.coerce.number().nullish(),
+    clip_seek_time: z.coerce.number().nullish(),
+  }),
+});
+
+/** 클립 상세: 어느 방송(copyright_id)의 어느 다시보기(original_vod) 몇 초 지점(clip_seek_time)에서 땄는지 */
+export async function fetchClipDetail(titleNo: number, f: typeof fetch = fetch): Promise<ClipDetail> {
+  const res = await f("https://api.m.sooplive.com/station/video/a/view", {
+    method: "POST",
+    headers: { "User-Agent": "Mozilla/5.0 (ttarin-songs)", "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ nTitleNo: String(titleNo), nApiLevel: "10", nPlaylistIdx: "" }).toString(),
+    cache: "no-store", signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new SoopHttpError(res.status);
+  const parsed = Detail.safeParse(await res.json().catch(() => null));
+  if (!parsed.success) throw new SoopFormatError(parsed.error.message);
+  const d = parsed.data.data;
+  return { sourceBj: d.copyright_id ?? null, sourceVod: d.original_vod || null, seekSec: d.clip_seek_time ?? null };
+}
+
 /** 동시 실행 수와 시작 간격을 제한한다(SOOP에 요청을 몰아 보내지 않기). */
 export class Throttle {
   private active = 0;

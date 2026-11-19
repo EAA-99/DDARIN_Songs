@@ -77,3 +77,39 @@ test.each([
 ])("version notes in parentheses are not the artist: %s", (raw, song) => {
   expect(parseTitle(raw)).toMatchObject({ status: "auto", songTitle: song, originalArtist: null });
 });
+
+// ── 합방 신호: 제목이 따린님 아닌 사람이 노래했다고 말하는가 ─────────────
+import { collabSignal } from "@/lib/parse-title";
+
+test.each([
+  ["[클립]구슬요 - 안동역에서", true],
+  ["[클립]냐냐 - 산책", true],
+  ["[클립]안동역에서 - 구슬요 Cover", true],
+  // 따린님이 함께 부른 듀엣은 "다른 사람이 따린님 없이 불렀다"는 신호가 아니다
+  ["[클립]8282 - 구슬요x따린 Cover", false],
+  ["따린&듀엣삼촌 - Say Something [재활 노래뱅]", false],
+  ["[클립]신난 따린 She's gone - GD", false],
+  ["[모캡 노래/냐냐] 서주경 - 당동한 여자", true],
+  ["Bruno Mars - Grenade", false],
+  ["따린 - Feel Good", false],
+  ["[로이세끼2] 성시경 - 태양계", false],
+  ["[클립]사탕 따는 팁", false],
+])("collab signal: %s → %s", (raw, expected) => {
+  expect(collabSignal(raw, new Set(["구슬요", "냐냐"]))).toBe(expected);
+});
+
+// ── 방송 정보로 자동 공개할 만큼 노래 제목처럼 보이는가 ──────────────────
+import { looksLikeSongTitle } from "@/lib/parse-title";
+
+test.each([
+  ["Imagine Dragons - Believer (짧)", true],
+  ["Matt Giraud - Part time lover / 바이브 지리는 노래 추천", true],
+  ["[듀엣삼촌] Charlie Puth - We Don't Talk Anymore (feat.Selena Gomez)", true],
+  ["[로이세끼2] 성시경 - 태양계", true],
+  ["[클립][레드윙즈 Big walk] 비밀 얘기 - 사실 머독을 좋아했던 민결희 / 머독 : 호구 조사 좀 하겠습니다", false],
+  ["[클립][단츄 마크 운동회] 7스테이지 믿음 - 선수 머독, 오더 민결희 / 민결희 : 쭉쭉빵빵", false],
+  ["[클립]이거 무슨 노래예요? - 따린", false],
+  ["가수 - 이건 곡명이라기엔 너무너무너무너무너무너무 긴 문장으로 된 잡담 클립 제목입니다", false],
+])("looks like a song title: %s → %s", (raw, expected) => {
+  expect(looksLikeSongTitle(raw)).toBe(expected);
+});

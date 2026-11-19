@@ -82,3 +82,20 @@ test("requests carry a timeout signal", async () => {
   await fetchClipPage({ page: 1, orderBy: "reg_date" }, f);
   expect(init?.signal).toBeInstanceOf(AbortSignal);
 });
+
+// ── 클립 상세(원본 방송) ────────────────────────────────────────────
+import detailFixture from "./fixtures/soop-detail.json";
+import { fetchClipDetail } from "@/lib/soop";
+
+test("clip detail gives the source broadcast, replay and seek time", async () => {
+  let body = "";
+  const f = (async (_u: string | URL, i?: RequestInit) => { body = String(i?.body); return new Response(JSON.stringify(detailFixture)); }) as typeof fetch;
+  expect(await fetchClipDetail(209282769, f)).toEqual({ sourceBj: "insome0319", sourceVod: 209286689, seekSec: 26746 });
+  expect(body).toContain("nTitleNo=209282769");
+});
+
+test("clip detail without source fields gives nulls; broken shape is a format error", async () => {
+  const empty = { result: 1, data: { title_no: 1 } };
+  expect(await fetchClipDetail(1, fakeFetch(empty))).toEqual({ sourceBj: null, sourceVod: null, seekSec: null });
+  await expect(fetchClipDetail(1, fakeFetch({ result: 1 }))).rejects.toBeInstanceOf(SoopFormatError);
+});
