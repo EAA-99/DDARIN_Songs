@@ -48,10 +48,11 @@ test("setStatus approves review clips and hides not-songs", async () => {
   const one = await clip(1);
   expect(one).toMatchObject({ status: "confirmed", locked: true });
   expect((await perf(one.performanceId!)).clipCount).toBe(1);
+  const stage = (await clip(2)).performanceId!;
   await setStatus(db, [2], "not_song");
   const two = await clip(2);
-  expect(two.status).toBe("not_song");
-  expect((await perf(two.performanceId!)).clipCount).toBe(0);
+  expect(two).toMatchObject({ status: "not_song", songId: null, performanceId: null });
+  expect((await perf(stage)).clipCount).toBe(0);
 });
 
 test("artist applied to every clip with the same title", async () => {
@@ -114,4 +115,54 @@ test("admin actions refuse without a session and change nothing", async () => {
   await expect(actions.setStatusAction([1], "not_song")).rejects.toThrow("NEXT_REDIRECT");
   expect((await clip(1)).status).toBe("auto");
   vi.doUnmock("next/headers"); vi.doUnmock("next/navigation"); vi.doUnmock("next/cache"); vi.doUnmock("@/db");
+});
+
+// ── 검토 지적 I2: 노래 아님으로 잠근 클립이 다시 나타날 때 ─────────────
+test("a clip marked not-a-song stays hidden after disappearing and coming back", async () => {
+  const { markGone } = await import("@/server/ingest");
+  await ingestClips(db, [c(1, "[로이세끼2] 윤미래 - Memories", "2026-11-17 00:30:00")], NOW);
+  expect((await clip(1)).status).toBe("review");
+  await setStatus(db, [1], "not_song");
+  await markGone(db, new Set(), { from: parseKst("2026-11-17 00:00:00"), to: parseKst("2026-11-17 23:59:59") });
+  await ingestClips(db, [c(1, "[로이세끼2] 윤미래 - Memories", "2026-11-17 00:30:00")], NOW);
+  const back = await clip(1);
+  expect(back.status).toBe("not_song");
+  expect(back.performanceId).toBeNull();
+});
+
+// ── 검토 지적 I3: 갱신이 기존 클립의 상태를 다시 쓰지 않음 ─────────────
+test("refreshing views never writes the status of a clip that is not gone", async () => {
+  await ingestClips(db, [c(1, "따린 - 숲", "2026-11-18 21:00:00")], NOW);
+  const writes: Record<string, unknown>[] = [];
+  const spy = new Proxy(db, {
+    get(t, p, r) {
+      if (p !== "update") return Reflect.get(t, p, r);
+      return (table: unknown) => {
+        const b = t.update(table as typeof clips);
+        return new Proxy(b, { get(bt, bp, br) {
+          if (bp !== "set") return Reflect.get(bt, bp, br);
+          return (v: Record<string, unknown>) => { if (table === clips) writes.push(v); return bt.set(v as never); };
+        } });
+      };
+    },
+  }) as Db;
+  await ingestClips(spy, [c(1, "따린 - 숲", "2026-11-18 21:00:00", 50)], NOW);
+  expect(writes.length).toBeGreaterThan(0);
+  expect(writes.every((w) => !("status" in w))).toBe(true);
+  expect((await clip(1)).readCnt).toBe(50);
+});
+
+// ── 검토 지적 I6: 관리자 변경 뒤 공개 캐시를 비움 ─────────────────────
+test("admin actions expire the public catalog cache", async () => {
+  vi.resetModules();
+  const tags: string[] = [];
+  vi.doMock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "ok" }) }) }));
+  vi.doMock("@/server/session", () => ({ requireAdmin: async () => {} }));
+  vi.doMock("next/cache", () => ({ revalidatePath: () => {}, updateTag: (t: string) => tags.push(t), revalidateTag: () => {} }));
+  vi.doMock("@/db", () => ({ getDb: () => db }));
+  await ingestClips(db, [c(1, "따린 - 숲", "2026-11-18 21:00:00")], NOW);
+  const actions = await import("@/app/admin/actions");
+  await actions.setStatusAction([1], "not_song");
+  expect(tags).toContain("catalog");
+  vi.doUnmock("next/headers"); vi.doUnmock("@/server/session"); vi.doUnmock("next/cache"); vi.doUnmock("@/db");
 });

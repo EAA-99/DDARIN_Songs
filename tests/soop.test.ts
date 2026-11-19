@@ -68,3 +68,17 @@ test("throttle limits concurrency and spaces starts", async () => {
   // 시작은 계획상 50ms 간격. 개별 간격은 이벤트 루프 지연으로 흔들리므로 전체 폭으로 확인한다
   expect(starts[4] - starts[0]).toBeGreaterThanOrEqual(4 * 50 - 10);
 });
+
+// ── 검토 지적 C1/I4 ────────────────────────────────────────────────
+test("items present but none are clips is a format error", async () => {
+  const body = clone();
+  for (const c of body.contents) c.ucc.fileType = "VOD_CLIP";
+  await expect(fetchClipPage({ page: 1, orderBy: "reg_date" }, fakeFetch(body))).rejects.toBeInstanceOf(SoopFormatError);
+});
+
+test("requests carry a timeout signal", async () => {
+  let init: RequestInit | undefined;
+  const f = (async (_u: string | URL, i?: RequestInit) => { init = i; return new Response(JSON.stringify(fixture)); }) as typeof fetch;
+  await fetchClipPage({ page: 1, orderBy: "reg_date" }, f);
+  expect(init?.signal).toBeInstanceOf(AbortSignal);
+});

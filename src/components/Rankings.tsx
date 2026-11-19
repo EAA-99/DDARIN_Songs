@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { connection } from "next/server";
-import { getDb } from "@/db";
 import { formatCount, formatShortDate, songHref } from "@/lib/links";
-import { topSongs, topViews, type PerfRow } from "@/server/queries";
+import { cachedRankings } from "@/server/cached";
+import type { PerfRow } from "@/server/queries";
 import { stageLabel } from "./PerformanceList";
 import { MiniPlay } from "./PlayButtons";
 import { RankingTabs } from "./RankingTabs";
@@ -25,11 +25,7 @@ function ViewList({ rows }: { rows: PerfRow[] }) {
 /** 첫 화면 순위: 조회수 TOP 10(이번 주/이번 달/전체) + 많이 부른 곡 TOP 10 */
 export async function Rankings() {
   await connection();
-  const db = getDb();
-  const now = new Date();
-  const [week, month, all, songs] = await Promise.all([
-    topViews(db, "week", now), topViews(db, "month", now), topViews(db, "all", now), topSongs(db),
-  ]);
+  const { week, month, all, songs } = await cachedRankings();
   return (
     <div className="ranks">
       <section className="rank-card" aria-labelledby="rank-views">

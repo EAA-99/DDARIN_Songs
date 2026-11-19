@@ -6,14 +6,15 @@ import { Suspense } from "react";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
 import { getDb } from "@/db";
 import { artistHref, songHref } from "@/lib/links";
-import { clipsForPerformances, songPage } from "@/server/queries";
+import { cachedSongPage } from "@/server/cached";
+import { clipsForPerformances } from "@/server/queries";
 
 type Props = PageProps<"/song/[slug]">;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await connection();
   const { slug } = await params;
-  const data = await songPage(getDb(), decodeURIComponent(slug), "latest");
+  const data = await cachedSongPage(decodeURIComponent(slug), "latest");
   return data ? { title: data.song.artist ? `${data.song.title} - ${data.song.artist}` : data.song.title } : {};
 }
 
@@ -23,7 +24,7 @@ async function Song({ params, searchParams }: Props) {
   const sp = await searchParams;
   const sort = sp.sort === "views" ? "views" : "latest";
   const db = getDb();
-  const data = await songPage(db, decodeURIComponent(slug), sort);
+  const data = await cachedSongPage(decodeURIComponent(slug), sort);
   if (!data) notFound();
   const clipsByStage = await clipsForPerformances(db, data.performances.map((r) => r.id));
   return (

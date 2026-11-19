@@ -3,19 +3,21 @@ import type { Db } from "@/db";
 import { clips, syncRuns, syncState } from "@/db/schema";
 import { kstDate, parseKst } from "@/lib/kst";
 import { Throttle, type ClipPage, type PageQuery } from "@/lib/soop";
-import { ingestClips, markGone } from "./ingest";
+import { ingestClips, loadPartners, markGone } from "./ingest";
 
 export const FIRST_DAY = "2023-01-01";
 const RECENT_DAYS = 90;
 const ROTATION_DAYS = 14;
 const LOCK_MS = 15 * 60_000;
 const DEFAULT_BUDGET = 150;
+const DEFAULT_DEADLINE_MS = 240_000; // Vercel 함수 제한(300초) 전에 깔끔하게 멈춘다
 
 export type SyncDeps = {
   fetchPage: (q: PageQuery) => Promise<ClipPage>;
   now: () => Date;
   budget?: number;
   gapMs?: number;
+  deadlineMs?: number;
 };
 export type SyncResult = { status: "ok" | "busy" | "error"; newClips: number; updatedViews: number; error?: string };
 type Win = { start: string; end: string };
@@ -70,15 +72,19 @@ const releaseLock = (db: Db) => clearState(db, "lock");
 // ── 요청 ────────────────────────────────────────────────────────────────
 class BudgetOut extends Error {}
 
-type Ctx = { db: Db; now: Date; fetch: (q: PageQuery) => Promise<ClipPage>; tally: { newClips: number; updatedViews: number } };
+type Ctx = {
+  db: Db; now: Date; fetch: (q: PageQuery) => Promise<ClipPage>;
+  tally: { newClips: number; updatedViews: number }; partners?: Set<string>;
+};
 
 function makeCtx(db: Db, deps: SyncDeps): Ctx {
   const throttle = new Throttle(1, deps.gapMs ?? 300);
   let left = deps.budget ?? DEFAULT_BUDGET;
+  const deadline = Date.now() + (deps.deadlineMs ?? DEFAULT_DEADLINE_MS);
   return {
     db, now: deps.now(), tally: { newClips: 0, updatedViews: 0 },
     fetch: (q) => {
-      if (left <= 0) throw new BudgetOut();
+      if (left <= 0 || Date.now() >= deadline) throw new BudgetOut();
       left--;
       return throttle.run(() => deps.fetchPage(q));
     },
@@ -86,7 +92,8 @@ function makeCtx(db: Db, deps: SyncDeps): Ctx {
 }
 
 async function ingest(ctx: Ctx, list: ClipPage["clips"]) {
-  const r = await ingestClips(ctx.db, list, ctx.now);
+  ctx.partners ??= await loadPartners(ctx.db); // 실행마다 한 번만 읽고, 새로 알게 된 이름은 ingestClips가 더한다
+  const r = await ingestClips(ctx.db, list, ctx.now, ctx.partners);
   ctx.tally.newClips += r.inserted;
   ctx.tally.updatedViews += r.updated;
 }
@@ -102,7 +109,7 @@ async function fetchWindow(ctx: Ctx, w: Win, startPage: number, save: (nextPage:
     await save(p + 1);
   }
   if (startPage === 1) {
-    await markGone(ctx.db, seen, { from: parseKst(`${w.start} 00:00:00`), to: parseKst(`${w.end} 23:59:59`) });
+    await markGone(ctx.db, seen, { from: parseKst(`${w.start} 00:00:00`), to: parseKst(`${w.end} 23:59:59`) }, { guard: true });
   }
 }
 

@@ -6,14 +6,15 @@ import { Suspense } from "react";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
 import { getDb } from "@/db";
 import { songHref } from "@/lib/links";
-import { artistPage, clipsForPerformances } from "@/server/queries";
+import { cachedArtistPage } from "@/server/cached";
+import { clipsForPerformances } from "@/server/queries";
 
 type Props = PageProps<"/artist/[name]">;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   await connection();
   const { name } = await params;
-  const data = await artistPage(getDb(), decodeURIComponent(name));
+  const data = await cachedArtistPage(decodeURIComponent(name));
   return data ? { title: data.name } : {};
 }
 
@@ -21,7 +22,7 @@ async function Artist({ params }: Props) {
   await connection();
   const { name } = await params;
   const db = getDb();
-  const data = await artistPage(db, decodeURIComponent(name));
+  const data = await cachedArtistPage(decodeURIComponent(name));
   if (!data) notFound();
   const clipsByStage = await clipsForPerformances(db, data.asPartner.map((r) => r.id));
   const stages = data.asOriginal.reduce((a, s) => a + s.performances, 0);

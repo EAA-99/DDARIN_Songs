@@ -68,4 +68,5 @@ export const loginAttempts = pgTable("login_attempts", {
   id: serial("id").primaryKey(),
   at: ts("at").notNull(),
   ok: boolean("ok").notNull(),
-});
+  ip: text("ip").notNull().default(""),
+}, (t) => [index("login_attempts_ip_at").on(t.ip, t.at)]);

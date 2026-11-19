@@ -1,15 +1,17 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { getDb } from "@/db";
 import { fetchClipPage } from "@/lib/soop";
 import {
   applyArtistToSameSong, editClip, mergePerformances, mergeSongs, sameSongCandidates, setStatus, splitPerformance,
 } from "@/server/admin";
+import { CATALOG_TAG } from "@/server/cached";
 import { requireAdmin } from "@/server/session";
 import { runBackfillStep, runDaily } from "@/server/sync";
 
-const done = () => { revalidatePath("/admin"); revalidatePath("/", "layout"); };
+// 관리자 변경은 공개 캐시를 바로 비워 다음 방문에 반영되게 한다
+const done = () => { updateTag(CATALOG_TAG); revalidatePath("/admin"); };
 const deps = () => ({ fetchPage: fetchClipPage, now: () => new Date() });
 
 export async function editClipAction(titleNo: number, v: { songTitle: string; artist: string; performers: string }) {

@@ -1,6 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
 import type { Db } from "@/db";
-import { canAttempt, checkPassword, recordAttempt, signSession, verifySession } from "@/server/auth";
+import { beginAttempt, checkPassword, markAttemptOk, signSession, verifySession } from "@/server/auth";
 import { createTestDb } from "./helpers/db";
 
 let db: Db;
@@ -39,13 +39,26 @@ test("a different secret invalidates sessions", () => {
   expect(verifySession(token, t0)).toBe(false);
 });
 
-test("5 failures in 15 minutes lock login until the window passes", async () => {
-  for (let i = 0; i < 5; i++) await recordAttempt(db, false, later(i * 60_000));
-  expect(await canAttempt(db, later(5 * 60_000))).toBe(false);
-  expect(await canAttempt(db, later(20 * 60_000))).toBe(true);
+test("5 failures in 15 minutes lock that address until the window passes", async () => {
+  for (let i = 0; i < 5; i++) expect((await beginAttempt(db, "1.1.1.1", later(i * 60_000))).allowed).toBe(true);
+  expect((await beginAttempt(db, "1.1.1.1", later(5 * 60_000))).allowed).toBe(false);
+  expect((await beginAttempt(db, "1.1.1.1", later(25 * 60_000))).allowed).toBe(true);
+});
+
+test("one address cannot lock out another (검토 지적 I5)", async () => {
+  for (let i = 0; i < 6; i++) await beginAttempt(db, "6.6.6.6", later(i * 1000));
+  expect((await beginAttempt(db, "2.2.2.2", later(10_000))).allowed).toBe(true);
+});
+
+test("a burst of parallel attempts gets at most 5 tries (검토 지적 I5)", async () => {
+  const r = await Promise.all(Array.from({ length: 30 }, () => beginAttempt(db, "9.9.9.9", t0)));
+  expect(r.filter((x) => x.allowed).length).toBeLessThanOrEqual(5);
 });
 
 test("successful attempts do not count", async () => {
-  for (let i = 0; i < 6; i++) await recordAttempt(db, true, later(i * 1000));
-  expect(await canAttempt(db, later(10_000))).toBe(true);
+  for (let i = 0; i < 6; i++) {
+    const a = await beginAttempt(db, "3.3.3.3", later(i * 1000));
+    await markAttemptOk(db, a.id);
+  }
+  expect((await beginAttempt(db, "3.3.3.3", later(10_000))).allowed).toBe(true);
 });

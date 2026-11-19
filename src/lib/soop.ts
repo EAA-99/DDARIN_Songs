@@ -48,10 +48,16 @@ export async function fetchClipPage(q: PageQuery, f: typeof fetch = fetch): Prom
     startDate: q.startDate ?? "", endDate: q.endDate ?? "", keyword: "",
     orderBy: q.orderBy, perPage: "60", page: String(q.page), field: "title,contents,user_nick,user_id",
   });
-  const res = await f(`${BASE}?${params}`, { headers: { "User-Agent": "Mozilla/5.0 (ttarin-songs)" }, cache: "no-store" });
+  const res = await f(`${BASE}?${params}`, {
+    headers: { "User-Agent": "Mozilla/5.0 (ttarin-songs)" }, cache: "no-store", signal: AbortSignal.timeout(15_000),
+  });
   if (!res.ok) throw new SoopHttpError(res.status);
   const parsed = Page.safeParse(await res.json().catch(() => null));
   if (!parsed.success) throw new SoopFormatError(parsed.error.message);
+  const items = parsed.data.contents;
+  if (items.length > 0 && !items.some((c) => c.ucc.fileType === "CLIP")) {
+    throw new SoopFormatError(`클립이 아닌 항목만 왔습니다(fileType: ${items[0].ucc.fileType})`);
+  }
   return {
     totalPages: parsed.data.meta.totalPages,
     totalItems: parsed.data.meta.totalItems,

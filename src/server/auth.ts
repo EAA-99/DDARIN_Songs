@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { and, count, eq, gte } from "drizzle-orm";
+import { and, count, eq, gte, lte } from "drizzle-orm";
 import type { Db } from "@/db";
 import { loginAttempts } from "@/db/schema";
 
@@ -41,13 +41,18 @@ export function verifySession(token: string | undefined, now: Date): boolean {
   return Number(exp) > now.getTime();
 }
 
-/** 최근 15분 안에 실패가 5번 이상이면 잠시 막는다. */
-export async function canAttempt(db: Db, now: Date): Promise<boolean> {
+/**
+ * 시도를 먼저 "실패"로 기록한 뒤 같은 주소의 최근 15분 실패 수를 센다(기록이 먼저라 한꺼번에 몰아 보내도 통과 수가 늘지 않음).
+ * 주소별로 세므로 다른 사람이 틀린 비밀번호를 넣어도 관리자가 잠기지 않는다. 비밀번호가 맞으면 markAttemptOk.
+ */
+export async function beginAttempt(db: Db, ip: string, now: Date): Promise<{ allowed: boolean; id: number }> {
+  const [row] = await db.insert(loginAttempts).values({ at: now, ok: false, ip }).returning({ id: loginAttempts.id });
   const [{ n }] = await db.select({ n: count() }).from(loginAttempts).where(and(
-    eq(loginAttempts.ok, false), gte(loginAttempts.at, new Date(now.getTime() - LOCK_WINDOW_MS))));
-  return n < MAX_FAILURES;
+    eq(loginAttempts.ip, ip), eq(loginAttempts.ok, false), gte(loginAttempts.at, new Date(now.getTime() - LOCK_WINDOW_MS)),
+    lte(loginAttempts.id, row.id)));
+  return { allowed: n <= MAX_FAILURES, id: row.id };
 }
 
-export async function recordAttempt(db: Db, ok: boolean, now: Date): Promise<void> {
-  await db.insert(loginAttempts).values({ at: now, ok });
+export async function markAttemptOk(db: Db, id: number): Promise<void> {
+  await db.update(loginAttempts).set({ ok: true }).where(eq(loginAttempts.id, id));
 }

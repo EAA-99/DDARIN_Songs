@@ -123,3 +123,42 @@ async function runBackfillStepsUntilDone(fetchPage: SyncDeps["fetchPage"]) {
   for (let i = 0; i < 500; i++) if ((await runBackfillStep(db, deps(fetchPage))).done) return;
   throw new Error("backfill did not finish");
 }
+
+// ── 검토 지적 C1: 형식은 맞지만 내용이 빈 응답 ─────────────────────────
+test("an empty response for a range that has clips is an error and hides nothing", async () => {
+  const data = dataset(20, 24);
+  await runBackfillStepsUntilDone(fakeSoop(data).fetchPage);
+  const r = await runDaily(db, deps(fakeSoop([]).fetchPage), "daily");
+  expect(r.status).toBe("error");
+  const statuses = new Set((await db.select({ s: clips.status }).from(clips)).map((x) => x.s));
+  expect(statuses.has("gone")).toBe(false);
+});
+
+test("a refetch that would hide many clips at once is an error", async () => {
+  const data = dataset(20, 24);
+  await runBackfillStepsUntilDone(fakeSoop(data).fetchPage);
+  const r = await runDaily(db, deps(fakeSoop(data.slice(0, 10)).fetchPage), "daily");
+  expect(r.status).toBe("error");
+  expect((await db.select({ s: clips.status }).from(clips)).filter((x) => x.s === "gone")).toHaveLength(0);
+});
+
+test("a few real deletions are still applied", async () => {
+  const data = dataset(20, 24);
+  await runBackfillStepsUntilDone(fakeSoop(data).fetchPage);
+  const r = await runDaily(db, deps(fakeSoop(data.slice(1)).fetchPage), "daily");
+  expect(r.status).toBe("ok");
+  expect((await db.select({ s: clips.status }).from(clips)).filter((x) => x.s === "gone")).toHaveLength(1);
+});
+
+// ── 검토 지적 I4: 시간 기한 ─────────────────────────────────────────
+test("a run stops cleanly at its deadline and releases the lock", async () => {
+  const data = dataset(300, 6);
+  const slow = fakeSoop(data);
+  const fetchPage: SyncDeps["fetchPage"] = async (q) => { await new Promise((r) => setTimeout(r, 40)); return slow.fetchPage(q); };
+  const r = await runDaily(db, { ...deps(fetchPage), deadlineMs: 150 }, "daily");
+  expect(r.status).toBe("ok");
+  expect(slow.calls.length).toBeLessThan(10);
+  const [run] = await db.select().from(syncRuns);
+  expect(run.finishedAt).not.toBeNull();
+  expect((await runDaily(db, deps(fakeSoop([]).fetchPage), "daily")).status).not.toBe("busy");
+});

@@ -31,7 +31,9 @@ export async function setStatus(db: Db, titleNos: number[], status: "confirmed" 
   const rows = await db.select().from(clips).where(inArray(clips.titleNo, titleNos));
   const target = status === "confirmed" ? rows.filter((r) => r.songId !== null) : rows;
   if (target.length === 0) return 0;
-  await db.update(clips).set({ status, locked: true }).where(inArray(clips.titleNo, target.map((r) => r.titleNo)));
+  await db.update(clips).set(status === "not_song"
+    ? { status, locked: true, songId: null, performanceId: null, performers: [], isDuet: false }
+    : { status, locked: true }).where(inArray(clips.titleNo, target.map((r) => r.titleNo)));
   const touched = new Set<number>();
   for (const r of target) {
     if (status === "confirmed" && r.performanceId === null) touched.add(await assignPerformance(db, r.titleNo));
