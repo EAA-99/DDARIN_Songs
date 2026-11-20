@@ -58,7 +58,7 @@ async function Results({ searchParams }: { searchParams: Promise<Record<string, 
         </p>
         <ViewToggle />
       </div>
-      <PerformanceList rows={rows} clipsByStage={clipsByStage} />
+      <PerformanceList rows={rows} clipsByStage={clipsByStage} start={(page - 1) * PAGE_SIZE + 1} />
       {pages > 1 && (
         <nav className="pager num" aria-label="페이지">
           {page > 1 && <Link href={href(page - 1)} scroll={false}>← 이전</Link>}

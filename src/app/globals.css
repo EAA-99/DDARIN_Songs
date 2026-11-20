@@ -202,13 +202,18 @@ button { font: inherit; color: inherit; }
 
 /* ── 목록 보기: 이미지 없이 곡 제목만 늘어놓은 플레이리스트 ───────── */
 [data-view="list"] .stages { grid-template-columns: minmax(0, 1fr); gap: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
-[data-view="list"] .stage { grid-template-columns: 36px minmax(0, 1fr); gap: 6px 12px; padding: 10px 14px; border: 0; border-top: 1px solid var(--line); border-radius: 0; align-items: center; overflow: visible; }
+[data-view="list"] .stage { counter-increment: n; grid-template-columns: 32px minmax(0, 1fr); gap: 6px 12px; padding: 10px 14px; border: 0; border-top: 1px solid var(--line); border-radius: 0; align-items: center; overflow: visible; }
 [data-view="list"] .stage:first-child { border-top: 0; }
 [data-view="list"] .stage:hover { background: var(--soft); box-shadow: none; transform: none; }
-[data-view="list"] .stage .thumb { width: 36px; aspect-ratio: 1; border-radius: 50%; background: none; overflow: visible; }
+[data-view="list"] .stage .thumb { width: 32px; aspect-ratio: 1; border-radius: 50%; background: none; overflow: visible; }
 [data-view="list"] .thumb img, [data-view="list"] .thumb__dur { display: none; }
 [data-view="list"] .thumb .thumb__play { background: none; }
-[data-view="list"] .thumb__play span { width: 36px; height: 36px; font-size: 12px; background: var(--chip); color: var(--brand); box-shadow: none; opacity: 1; transform: none; }
+/* 순번을 보여 주고, 마우스를 올리면 ▶, 재생 중이면 ♪ */
+[data-view="list"] .thumb__play span { width: 32px; height: 32px; font-size: 0; background: none; color: var(--muted); box-shadow: none; opacity: 1; transform: none; }
+[data-view="list"] .thumb__play span::before { content: counter(n); font-size: 15px; font-weight: 800; }
+[data-view="list"] .stage:hover .thumb__play span::before, [data-view="list"] .thumb:focus-visible .thumb__play span::before { content: "▶"; font-size: 13px; color: var(--brand); }
+[data-view="list"] .thumb[aria-pressed="true"] .thumb__play span { background: none; }
+[data-view="list"] .thumb[aria-pressed="true"] .thumb__play span::before { content: "♪"; font-size: 18px; color: var(--brand); }
 [data-view="list"] .stage__body { padding: 0; grid-template-columns: minmax(0, 1fr) auto; gap: 0 12px; align-items: center; }
 [data-view="list"] .stage__title { font-size: 15px; }
 [data-view="list"] .stage__sub { grid-column: 1; min-height: 0; }

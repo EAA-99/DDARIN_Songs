@@ -20,14 +20,16 @@ function Partners({ names }: { names: string[] }) {
   );
 }
 
-/** 무대 카드 격자. 카드 하나 = 무대 하나, "클립 N개"를 펼치면 클립별로 재생 */
-export function PerformanceList({ rows, clipsByStage, showSong = true }: {
+/** 무대 카드 격자. 카드 하나 = 무대 하나, "클립 N개"를 펼치면 클립별로 재생.
+ *  start: 목록 보기의 번호가 시작하는 순번(페이지를 넘겨도 이어지도록) */
+export function PerformanceList({ rows, clipsByStage, showSong = true, start = 1 }: {
   rows: PerfRow[];
   clipsByStage: Map<number, ClipItem[]>;
   showSong?: boolean;
+  start?: number;
 }) {
   return (
-    <ul className="stages">
+    <ul className="stages" style={{ counterReset: `n ${start - 1}` }}>
       {rows.map((r) => {
         const label = stageLabel(r);
         const list = clipsByStage.get(r.id) ?? [];
