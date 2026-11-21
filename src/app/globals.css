@@ -82,7 +82,7 @@ button { font: inherit; color: inherit; }
 .player__actions a { white-space: nowrap; font-weight: 700; padding: 4px 8px; }
 .player__actions button { width: 28px; height: 28px; border: 0; border-radius: 50%; background: rgb(255 255 255 / 0.18); color: #fff; cursor: pointer; font-size: 12px; }
 .player__actions button:hover { background: rgb(255 255 255 / 0.32); }
-.player__now { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 700; }
+.player__now { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 700; border: 0; padding: 0; background: none; text-align: left; cursor: pointer; }
 .player__now > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── 플레이어 모양: 영상 / 바 ── */
@@ -118,9 +118,12 @@ body:has(.player--bar) .main { padding-bottom: 96px; }
 html.in-app .topbar__inner { display: none; }
 html.in-app .topbar { border-bottom: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
 html.in-app .topbar .player:not(.player--bar) { margin-top: 12px; }
-/* 일정표 앱이 다른 화면으로 갔을 때: 바만 남긴다 */
+/* 일정표 앱이 다른 화면으로 갔을 때: 플레이어(바 또는 영상)만 남긴다. 영상이면 앱의 작은 창을 여백 없이 채운다 */
 html.is-docked, html.is-docked body { background: transparent; overflow: hidden; }
 html.is-docked .main, html.is-docked .footer, html.is-docked .topbar__inner { display: none; }
+html.is-docked .topbar .wrap { padding: 0; }
+html.is-docked .topbar .player:not(.player--bar) { margin: 0; max-width: none; border-radius: 0; box-shadow: none; }
+html.is-docked .player:not(.player--bar) .player__frame { max-height: none; }
 html.is-docked .player--bar { box-shadow: none; }
 .player__eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
 .player__eq i { width: 3px; background: #fff; border-radius: 1px; animation: eq 0.9s ease-in-out infinite; }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { embedUrl, formatDuration, soopUrl } from "@/lib/links";
 import { usePlayer, type PlayerMode } from "./PlayerProvider";
@@ -11,7 +12,9 @@ import { usePlayer, type PlayerMode } from "./PlayerProvider";
  */
 export function Player() {
   const { current, play, stop, mode, setMode } = usePlayer();
+  const router = useRouter();
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
   // 재생 상태는 어느 클립의 것인지 함께 둔다 (클립이 바뀌면 따로 비우지 않아도 처음 상태로 보인다)
   const [media, setMedia] = useState({ titleNo: 0, playing: false, time: 0 });
   const lastClick = useRef<{ el: Element; top: number; at: number } | null>(null);
@@ -35,10 +38,12 @@ export function Player() {
     return keepPlace(c && c.el.isConnected && Date.now() - c.at < 1000 ? c : null);
   }, [titleNo]);
 
-  // 일정표 앱 안에 들어가 있을 때: 앱이 다른 화면으로 가면 "dock"을 보내고, 이 페이지는 바만 남긴다.
-  // 재생 중인지는 앱에 알려 준다 (재생 중일 때만 앱이 아래에 바를 남겨 둔다).
+  // 일정표 앱 안에 들어가 있을 때: 앱이 다른 화면으로 가면 "dock"을 보내고, 이 페이지는 플레이어만 남긴다(바 또는 영상).
+  // 재생 중인지·모양·높이는 앱에 알려 준다 (재생 중일 때만 앱이 아래에 플레이어를 남겨 두고, 높이에 맞춰 창 크기를 정한다).
   const [docked, setDocked] = useState(false);
   const savedY = useRef(0);
+  // 아래 플레이어를 눌러 앱이 이 화면을 다시 열면, 보던 위치 대신 재생 중인 클립으로 간다
+  const focusOnUndock = useRef(false);
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (e.source !== window.parent || e.data?.type !== "ttarin-dock") return;
@@ -63,7 +68,9 @@ export function Player() {
     if (docked) return;
     // 앱이 이 창(iframe)을 다시 키우는 동안(열리는 애니메이션) 크기가 여러 번 바뀌어서, 1초 동안은 바뀔 때마다 맞춘다
     const y = savedY.current;
-    const go = () => window.scrollTo(0, y);
+    const target = focusOnUndock.current && titleNo ? thumbOf(titleNo) : undefined;
+    focusOnUndock.current = false;
+    const go = () => (target ? target.scrollIntoView({ block: "center" }) : window.scrollTo(0, y));
     go();
     window.addEventListener("resize", go);
     const stop = () => {
@@ -72,11 +79,23 @@ export function Player() {
     };
     for (const t of ["wheel", "touchstart", "keydown"]) window.addEventListener(t, stop, true);
     setTimeout(stop, 1000);
-  }, [docked]);
+  }, [docked, titleNo]); // titleNo가 바뀌어도 dock 상태가 같으면 위에서 바로 끝난다
   const active = !!current;
+  const isBar = mode === "bar";
   useEffect(() => {
-    if (window.parent !== window) window.parent.postMessage({ type: "ttarin-player", active }, "*");
-  }, [active]);
+    if (window.parent === window) return;
+    const report = () =>
+      window.parent.postMessage(
+        { type: "ttarin-player", active, mode: isBar ? "bar" : "video", height: playerRef.current?.offsetHeight ?? 0 },
+        "*",
+      );
+    report();
+    const el = playerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [active, isBar]);
 
   useEffect(() => {
     if (!titleNo) return;
@@ -108,7 +127,18 @@ export function Player() {
   const time = media.titleNo === current.titleNo ? media.time : 0;
   const send = (cmd: string) => frameRef.current?.contentWindow?.postMessage({ cmd }, "*");
   const total = current.durationMs ? current.durationMs / 1000 : 0;
-  const isBar = mode === "bar" || docked;
+  // 제목을 누르면 곡 목록으로: 앱의 다른 화면이면 앱에 Playlist를 열어 달라고, 곡·가수 페이지면 목록으로, 목록이면 재생 중인 클립으로
+  const toList = () => {
+    if (docked) {
+      focusOnUndock.current = true;
+      window.parent.postMessage({ type: "ttarin-open" }, "*");
+    } else if (window.location.pathname !== "/") {
+      // usePathname()은 레이아웃(Suspense 밖)에서 쓰면 미리 만드는 페이지 빌드가 깨져서, 누를 때 주소를 직접 본다
+      router.push("/");
+    } else {
+      thumbOf(current.titleNo)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  };
   // 모양을 바꿀 때 화면 가운데쯤 보이던 목록이 그 자리에 있게 한다 (영상이 위에 생기거나 없어져도 목록이 안 움직이게)
   const changeMode = (m: PlayerMode) => {
     const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
@@ -128,7 +158,7 @@ export function Player() {
   };
 
   return (
-    <div className={isBar ? "player player--bar" : "player"}>
+    <div ref={playerRef} className={isBar ? "player player--bar" : "player"}>
       <div className="player__frame" aria-hidden={isBar || undefined}>
         <iframe
           ref={frameRef}
@@ -164,7 +194,7 @@ export function Player() {
             </button>
           </span>
         )}
-        <span className="player__now">
+        <button type="button" className="player__now" onClick={toList} aria-label="곡 목록으로">
           {(!isBar || playing) && <span className="player__eq" aria-hidden><i /><i /><i /></span>}
           <span className="player__text">
             <span className="player__title">{current.label}</span>
@@ -175,9 +205,9 @@ export function Player() {
               </span>
             )}
           </span>
-        </span>
+        </button>
         <span className="player__actions">
-          {!docked && <ModeToggle mode={mode} setMode={changeMode} />}
+          <ModeToggle mode={mode} setMode={docked ? setMode : changeMode} />
           {!isBar && (
             <a href={soopUrl(current.titleNo)} target="_blank" rel="noopener noreferrer">SOOP<span className="player__long">에서 보기</span> ↗</a>
           )}
@@ -186,6 +216,11 @@ export function Player() {
       </div>
     </div>
   );
+}
+
+/** 지금 화면 목록에서 titleNo 클립의 썸네일 버튼 */
+function thumbOf(titleNo: number) {
+  return document.querySelector<HTMLElement>(`button.thumb[data-title-no="${titleNo}"]`) ?? undefined;
 }
 
 /** 지금 화면에 보이는 클립 목록(썸네일 버튼 순서)에서 titleNo의 앞/뒤 클립 */
