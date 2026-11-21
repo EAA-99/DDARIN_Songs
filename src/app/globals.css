@@ -84,6 +84,44 @@ button { font: inherit; color: inherit; }
 .player__actions button:hover { background: rgb(255 255 255 / 0.32); }
 .player__now { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 700; }
 .player__now > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 플레이어 모양: 영상 / 바 ── */
+.player__text { display: flex; flex-direction: column; min-width: 0; }
+.player__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player__time { font-size: 11px; font-weight: 600; opacity: 0.7; }
+.player__mode { display: inline-flex; padding: 2px; border-radius: 999px; background: rgb(255 255 255 / 0.16); margin-right: 2px; }
+.player__actions .player__mode button { width: auto; height: 24px; padding: 0 10px; border-radius: 999px; background: transparent; font-size: 12px; font-weight: 700; color: rgb(255 255 255 / 0.75); }
+.player__actions .player__mode button[aria-pressed="true"] { background: #fff; color: var(--ink); }
+/* 바: 영상은 숨기고(소리는 계속) 화면 아래 한 줄로 붙인다 */
+.topbar:has(.player--bar) { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.player--bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; margin: 0; max-width: none; border-radius: 0; overflow: visible; box-shadow: 0 -6px 24px rgb(11 13 18 / 0.18); }
+.player--bar .player__frame { position: absolute; left: 0; bottom: 0; width: 160px; height: 90px; aspect-ratio: auto; max-height: none; opacity: 0; pointer-events: none; z-index: -1; }
+.player--bar .player__bar { min-height: 60px; padding: 8px 10px 8px 10px; gap: 10px; background: #0b0d12; position: relative; }
+.player__bar .player__now { flex: 1; }
+@media (max-width: 480px) { .player__actions a { padding: 4px 4px; font-size: 12px; } .player__long { display: none; } }
+.player__toggle-play { flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%; background: #fff; color: #0b0d12; font-size: 13px; font-weight: 800; cursor: pointer; letter-spacing: -2px; }
+.player__controls { flex: none; display: inline-flex; align-items: center; gap: 2px; }
+.player__skip { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: #fff; font-size: 16px; cursor: pointer; }
+.player__skip:hover { background: rgb(255 255 255 / 0.12); }
+.player__controls button { display: inline-grid; place-items: center; padding: 0; }
+@media (max-width: 480px) {
+  .player--bar .player__bar { gap: 6px; padding: 8px 6px; }
+  .player--bar .player__eq { display: none; }
+  .player__skip { width: 30px; height: 30px; }
+  .player--bar .player__toggle-play { width: 36px; height: 36px; }
+  .player--bar .player__mode button[aria-pressed="true"] { display: none; }
+}
+.player__progress { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: rgb(255 255 255 / 0.15); z-index: 1; }
+.player__progress i { display: block; height: 100%; background: linear-gradient(90deg, var(--hero-from), var(--hero-to)); transition: width 0.3s linear; }
+body:has(.player--bar) .main { padding-bottom: 96px; }
+/* 일정표 앱 안에서: 로고 줄 없이 플레이어만 위에 */
+html.in-app .topbar__inner { display: none; }
+html.in-app .topbar { border-bottom: 0; background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+html.in-app .topbar .player:not(.player--bar) { margin-top: 12px; }
+/* 일정표 앱이 다른 화면으로 갔을 때: 바만 남긴다 */
+html.is-docked, html.is-docked body { background: transparent; overflow: hidden; }
+html.is-docked .main, html.is-docked .footer, html.is-docked .topbar__inner { display: none; }
+html.is-docked .player--bar { box-shadow: none; }
 .player__eq { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
 .player__eq i { width: 3px; background: #fff; border-radius: 1px; animation: eq 0.9s ease-in-out infinite; }
 .player__eq i:nth-child(2) { animation-delay: 0.2s; }
@@ -115,8 +153,9 @@ button { font: inherit; color: inherit; }
   content: "♪ ♫"; position: absolute; right: 4%; bottom: -28px; font-size: 160px; line-height: 1;
   color: rgb(255 255 255 / 0.08); pointer-events: none; letter-spacing: -0.1em;
 }
-.intro__inner { position: relative; z-index: 1; display: grid; gap: 18px; padding-top: 32px; padding-bottom: 28px; }
+.intro__inner { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; padding-top: 32px; padding-bottom: 28px; }
 .intro__head { display: flex; align-items: center; gap: 16px; }
+.intro__head > * { min-width: 0; }
 .intro__avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid rgb(255 255 255 / 0.9); box-shadow: 0 6px 20px rgb(0 0 0 / 0.18); }
 .intro h1 { margin: 0; font-size: clamp(22px, 5.4vw, 34px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.2; }
 .intro p { margin: 6px 0 0; font-size: 14px; opacity: 0.9; }
@@ -250,6 +289,8 @@ button { font: inherit; color: inherit; }
 
 /* ── 곡·가수 페이지 ───────────────────────────────────────────── */
 .page-head { margin: 4px 0 18px; }
+.back-link { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 10px; padding: 7px 14px 7px 10px; border: 0; border-radius: 999px; background: var(--chip); color: var(--brand-ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.back-link:hover { background: var(--brand); color: #fff; }
 .page-head h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
 .page-head p { margin: 4px 0 0; color: var(--muted); }
 .page-head a { color: var(--brand-ink); font-weight: 600; }

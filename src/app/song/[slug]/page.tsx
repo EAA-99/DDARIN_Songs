@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { BackLink } from "@/components/BackLink";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
 import { ViewToggle } from "@/components/ViewToggle";
 import { getDb } from "@/db";
@@ -31,6 +32,7 @@ async function Song({ params, searchParams }: Props) {
   return (
     <>
       <header className="page-head">
+        <BackLink />
         <h1>{data.song.title}</h1>
         <p className="num">
           {data.song.artist && <>원곡 <Link href={artistHref(data.song.artist)}>{data.song.artist}</Link> · </>}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import { BackLink } from "@/components/BackLink";
 import { ListSkeleton, PerformanceList } from "@/components/PerformanceList";
 import { getDb } from "@/db";
 import { songHref } from "@/lib/links";
@@ -31,6 +32,7 @@ async function Artist({ params }: Props) {
   return (
     <>
       <header className="page-head">
+        <BackLink />
         <h1>{data.name}</h1>
         <p className="num">
           {data.asOriginal.length > 0 && <>따린님이 부른 곡 <strong>{data.asOriginal.length}곡</strong> · 클립 {originalClips}개</>}

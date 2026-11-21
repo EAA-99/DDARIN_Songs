@@ -10,7 +10,16 @@ export function ThumbPlay({ titleNo, label, thumbUrl, durationMs }: Props & { th
   const { current, play } = usePlayer();
   const on = current?.titleNo === titleNo;
   return (
-    <button type="button" className="thumb" aria-pressed={on} aria-label={`${label} 재생`} onClick={() => play(titleNo, label)}>
+    <button
+      type="button"
+      className="thumb"
+      aria-pressed={on}
+      aria-label={`${label} 재생`}
+      data-title-no={titleNo}
+      data-label={label}
+      data-duration-ms={durationMs}
+      onClick={() => play(titleNo, label, durationMs)}
+    >
       {thumbUrl ? (
         // SOOP 썸네일 주소가 여러 호스트라 next/image 대신 img를 쓴다
         // eslint-disable-next-line @next/next/no-img-element

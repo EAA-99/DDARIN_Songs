@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { NavHistory } from "@/components/BackLink";
 import { Player } from "@/components/Player";
 import { PlayerProvider } from "@/components/PlayerProvider";
 import { VIEW_INIT_SCRIPT } from "@/components/ViewToggle";
@@ -23,6 +25,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ko" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: VIEW_INIT_SCRIPT }} />
+        {/* 일정표 앱 안(iframe)에서 열리면 앱에 자기 머리말이 있으니 이 사이트의 로고 줄은 숨긴다 */}
+        <script dangerouslySetInnerHTML={{ __html: `if(window.top!==window.self)document.documentElement.classList.add("in-app")` }} />
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
@@ -41,6 +45,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <a className="topbar__channel" href={CHANNEL_URL} target="_blank" rel="noopener noreferrer">SOOP 방송국 ↗</a>
             </div>
             <div className="wrap"><Player /></div>
+            <Suspense fallback={null}><NavHistory /></Suspense>
           </header>
           <main className="main">{children}</main>
           <footer className="footer">
