@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type FormEvent } from "react";
 import {
-  backfillStepAction, mergePerformancesAction, mergeSongsAction, splitPerformanceAction, syncNowAction,
+  backfillStepAction, mergePerformancesAction, mergeSongsAction, recheckAutoAction, splitPerformanceAction, syncNowAction,
 } from "@/app/admin/actions";
 
 const describe = (r: { status: string; newClips: number; updatedViews: number; error?: string }) =>
@@ -25,6 +25,13 @@ export function SyncButtons({ backfillDone }: { backfillDone: boolean }) {
           첫 수집 이어하기
         </button>
       )}
+      <button type="button" className="secondary" disabled={pending}
+        onClick={() => start(async () => {
+          const r = await recheckAutoAction();
+          setMsg(`자동 공개 ${r.checked}개 검사 · ${r.demoted}개 확인 필요로 이동 · ${r.notSong}개 노래 아님`);
+        })}>
+        자동 공개 다시 검사
+      </button>
       {msg && <span>{msg}</span>}
     </div>
   );

@@ -143,6 +143,8 @@ html.is-docked .player--bar { box-shadow: none; }
   .home__side { order: 0; }
 }
 .footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; padding: 20px 0 32px; }
+.footer__admin { margin-left: 8px; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.footer__admin:hover { color: var(--ink); }
 
 /* ── 첫 화면 소개 ─────────────────────────────────────────────── */
 .intro {

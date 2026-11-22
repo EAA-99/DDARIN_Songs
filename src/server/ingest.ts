@@ -2,8 +2,10 @@ import { and, between, eq, gt, inArray, ne } from "drizzle-orm";
 import type { Db } from "@/db";
 import { clips, performances, songs } from "@/db/schema";
 import { collabSignal, looksLikeSongTitle, parseTitle, type Parsed } from "@/lib/parse-title";
+import type { SongLookup } from "@/lib/deezer";
 import type { ClipDetail, SoopClip } from "@/lib/soop";
 import { assignPerformance, findOrCreateSong, guessArtist, PUBLIC_STATUSES, refreshPerformance } from "./catalog";
+import { decide } from "./verify";
 
 const ME = "따린";
 export const CHANNEL_ID = "insome0319";
@@ -18,7 +20,7 @@ export async function loadPartners(db: Db): Promise<Set<string>> {
 }
 
 /** 공개 무대가 있는 곡의 정규화 곡명("곡명 불러주는 따린" 같은 제목을 확신하는 데 쓴다) */
-async function loadKnownSongs(db: Db): Promise<Set<string>> {
+export async function loadKnownSongs(db: Db): Promise<Set<string>> {
   const rows = await db.selectDistinct({ t: songs.titleNorm }).from(songs)
     .innerJoin(performances, and(eq(performances.songId, songs.id), gt(performances.clipCount, 0)));
   return new Set(rows.map((r) => r.t));
@@ -32,11 +34,11 @@ async function songFor(db: Db, p: Parsed): Promise<number | null> {
 
 /**
  * SOOP에서 받은 클립을 DB에 반영한다.
- * 새 클립: 분류 → (노래 후보·합방 신호면) 원본 방송 정보 → 곡 연결 → 무대 배정 → 방송 단위 판단.
+ * 새 클립: 분류 → (lookup이 있으면) 자동 공개 전 곡 확인 → (노래 후보·합방 신호면) 원본 방송 정보 → 곡 연결 → 무대 배정 → 방송 단위 판단.
  * 기존 클립: 조회수·썸네일만 갱신(관리자 수정값 보존). 사라졌다가(gone) 다시 보이는 클립은 상태를 되돌린다.
  */
 export async function ingestClips(
-  db: Db, list: SoopClip[], now: Date, knownPartners?: Set<string>, fetchDetail?: FetchDetail,
+  db: Db, list: SoopClip[], now: Date, knownPartners?: Set<string>, fetchDetail?: FetchDetail, lookup?: SongLookup,
 ): Promise<{ inserted: number; updated: number }> {
   if (list.length === 0) return { inserted: 0, updated: 0 };
   const partners = knownPartners ?? (await loadPartners(db));
@@ -61,7 +63,9 @@ export async function ingestClips(
       updated++;
       continue;
     }
-    const p = parseTitle(s.title, partners, knownSongs);
+    const parsed = parseTitle(s.title, partners, knownSongs);
+    const d = lookup ? await decide(db, parsed, knownSongs, lookup, now) : null;
+    const p: Parsed = d ? { ...parsed, status: d.status, originalArtist: d.artist } : parsed;
     const wantDetail = fetchDetail && (p.status !== "not_song" || collabSignal(s.title, partners));
     const detail = wantDetail ? await fetchDetail(s.titleNo) : null;
     const songId = await songFor(db, p);
@@ -70,7 +74,7 @@ export async function ingestClips(
       regDate: s.regDate, readCnt: s.readCnt, thumbUrl: s.thumbUrl, durationMs: s.durationMs,
       status: p.status, songId, performers: p.performers, isDuet: p.performers.length > 1,
       sourceBj: detail?.sourceBj ?? null, sourceVod: detail?.sourceVod ?? null, seekSec: detail?.seekSec ?? null,
-      firstSeenAt: now, viewsUpdatedAt: now,
+      unverified: d?.unverified ?? false, firstSeenAt: now, viewsUpdatedAt: now,
     });
     if (songId) await assignPerformance(db, s.titleNo);
     if (detail?.sourceVod) vods.add(detail.sourceVod);

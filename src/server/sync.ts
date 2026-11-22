@@ -2,8 +2,10 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { clips, syncRuns, syncState } from "@/db/schema";
 import { kstDate, parseKst } from "@/lib/kst";
+import { throttled, type SongLookup } from "@/lib/deezer";
 import { Throttle, type ClipDetail, type ClipPage, type PageQuery } from "@/lib/soop";
 import { ingestClips, loadPartners, markGone, type FetchDetail } from "./ingest";
+import { recheckClips } from "./verify";
 
 export const FIRST_DAY = "2023-01-01";
 const RECENT_DAYS = 90;
@@ -16,6 +18,8 @@ export type SyncDeps = {
   fetchPage: (q: PageQuery) => Promise<ClipPage>;
   /** 클립 상세(원본 방송). 없으면 방송 정보 없이 분류한다 */
   fetchDetail?: (titleNo: number) => Promise<ClipDetail>;
+  /** 자동 공개 전 곡 확인(Deezer). 없으면 확인 없이 제목만으로 분류한다 */
+  lookupSong?: SongLookup;
   now: () => Date;
   budget?: number;
   gapMs?: number;
@@ -75,7 +79,7 @@ const releaseLock = (db: Db) => clearState(db, "lock");
 class BudgetOut extends Error {}
 
 type Ctx = {
-  db: Db; now: Date; fetch: (q: PageQuery) => Promise<ClipPage>; detail?: FetchDetail;
+  db: Db; now: Date; fetch: (q: PageQuery) => Promise<ClipPage>; detail?: FetchDetail; lookup?: SongLookup;
   tally: { newClips: number; updatedViews: number }; partners?: Set<string>;
 };
 
@@ -94,12 +98,13 @@ function makeCtx(db: Db, deps: SyncDeps): Ctx {
     db, now: deps.now(), tally: { newClips: 0, updatedViews: 0 },
     fetch: (q) => spend(() => deps.fetchPage(q)),
     detail: fetchDetail && ((no) => spend(() => fetchDetail(no))),
+    lookup: deps.lookupSong && throttled(deps.lookupSong), // SOOP 예산과 따로
   };
 }
 
 async function ingest(ctx: Ctx, list: ClipPage["clips"]) {
   ctx.partners ??= await loadPartners(ctx.db); // 실행마다 한 번만 읽고, 새로 알게 된 이름은 ingestClips가 더한다
-  const r = await ingestClips(ctx.db, list, ctx.now, ctx.partners, ctx.detail);
+  const r = await ingestClips(ctx.db, list, ctx.now, ctx.partners, ctx.detail, ctx.lookup);
   ctx.tally.newClips += r.inserted;
   ctx.tally.updatedViews += r.updated;
 }
@@ -143,6 +148,8 @@ async function withRun<T extends object>(db: Db, deps: SyncDeps, kind: "daily" |
 /** 매일 갱신(스펙 7장): ① 새 클립 ② 최근 90일 조회수·삭제 ③ 오래된 기간 순환. 예산을 넘으면 위치를 저장하고 멈춘다. */
 export function runDaily(db: Db, deps: SyncDeps, kind: "daily" | "manual"): Promise<SyncResult> {
   return withRun(db, deps, kind, async (ctx) => {
+    // ⓪ 음원 확인 오류로 보류한 클립 다시 검사(SOOP 예산을 쓰지 않아 맨 앞에서)
+    if (ctx.lookup) await recheckClips(db, "unverified", ctx.lookup, ctx.now);
     const recent = recentRange(ctx.now);
 
     // ① 새 클립: 최신순으로 받다가 이미 아는 클립이 나오면(또는 최근 범위를 벗어나면) 멈춤

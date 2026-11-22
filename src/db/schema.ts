@@ -46,12 +46,21 @@ export const clips = pgTable("clips", {
   sourceVod: bigint("source_vod", { mode: "number" }),
   seekSec: integer("seek_sec"),
   viaBroadcast: boolean("via_broadcast").notNull().default(false), // 혼자 한 방송이라 따린님 무대로 자동 공개한 클립
+  unverified: boolean("unverified").notNull().default(false), // 음원 확인(Deezer)이 오류라 일단 확인 필요로 둔 클립. 매일 다시 검사
   firstSeenAt: ts("first_seen_at").notNull(),
   viewsUpdatedAt: ts("views_updated_at").notNull(),
 }, (t) => [
   index("clips_reg_date").on(t.regDate), index("clips_status").on(t.status),
   index("clips_song").on(t.songId), index("clips_performance").on(t.performanceId), index("clips_source_vod").on(t.sourceVod),
 ]);
+
+/** 곡명 음원 확인 결과(Deezer). 같은 곡명은 다시 묻지 않는다(못 찾은 결과는 30일 뒤 다시) */
+export const titleChecks = pgTable("title_checks", {
+  titleNorm: text("title_norm").primaryKey(),
+  found: boolean("found").notNull(),
+  artist: text("artist"),
+  checkedAt: ts("checked_at").notNull(),
+});
 
 export const syncRuns = pgTable("sync_runs", {
   id: serial("id").primaryKey(),

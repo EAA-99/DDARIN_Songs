@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { norm } from "./normalize";
+import { Throttle } from "./soop";
 
 /** 곡명이 음원으로 있는지와, 확실할 때만 원곡 가수 */
 export type SongLookup = (title: string) => Promise<{ found: boolean; artist: string | null }>;
@@ -20,6 +21,11 @@ export function pickArtist(hits: { artist: string; rank: number }[]): string | n
   const [first, second] = [...sum].sort((a, b) => b[1] - a[1]);
   if (!first) return null;
   return !second || first[1] >= second[1] * 2 ? first[0] : null;
+}
+
+/** 동시 2개·300ms 간격으로 묶는다(Deezer 제한: 5초에 50번) */
+export function throttled(lookup: SongLookup, t = new Throttle(2, 300)): SongLookup {
+  return (title) => t.run(() => lookup(title));
 }
 
 /** Deezer 검색(키 불필요). 응답이 이상하면 DeezerError(호출한 쪽이 나중에 다시 검사) */
