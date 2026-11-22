@@ -82,6 +82,8 @@ export default function Home({ searchParams }: PageProps<"/">) {
               <h1>따린이 부른 노래, 한곳에서</h1>
               <p>시청자들이 남긴 SOOP 클립을 곡별로 모았어요. 곡명이나 가수를 검색해 보세요.</p>
             </div>
+            {/* 일정표 앱 안(iframe)에서는 로그인 쿠키가 막힐 수 있어 새 탭으로 연다. 로그인하면 관리자 화면으로 */}
+            <a className="intro__admin" href="/admin/login" target="_blank" rel="noopener">관리자 로그인</a>
           </div>
           <Suspense fallback={<SearchSkeleton />}><SearchBox /></Suspense>
           <Suspense fallback={<dl className="intro__stats" />}><Stats /></Suspense>

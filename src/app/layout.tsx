@@ -51,8 +51,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <footer className="footer">
             <div className="wrap">
               팬이 만든 비공식 사이트입니다. 영상과 조회수는 SOOP 시청자 클립에서 가져오며 하루에 한 번 갱신됩니다.
-              {/* 일정표 앱 안(iframe)에서는 로그인 쿠키가 막힐 수 있어 항상 새 탭으로 연다 */}
-              <a className="footer__admin" href="/admin" target="_blank" rel="noopener">관리자</a>
             </div>
           </footer>
         </PlayerProvider>

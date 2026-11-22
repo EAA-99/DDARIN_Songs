@@ -1,19 +1,20 @@
-"use client";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
+import { SESSION_COOKIE, verifySession } from "@/server/auth";
+import { LoginForm } from "./LoginForm";
 
-import { useActionState } from "react";
-import { login, type LoginState } from "./actions";
+/** 이미 로그인돼 있으면 비밀번호를 다시 묻지 않고 관리자 화면으로 */
+async function SkipIfSignedIn() {
+  if (verifySession((await cookies()).get(SESSION_COOKIE)?.value, new Date())) redirect("/admin");
+  return null;
+}
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState<LoginState, FormData>(login, {});
   return (
-    <form action={action} className="login">
-      <h1>관리자</h1>
-      <label>
-        <span>비밀번호</span>
-        <input type="password" name="password" autoComplete="current-password" required autoFocus />
-      </label>
-      {state.error && <p className="login__error" role="alert">{state.error}</p>}
-      <button type="submit" disabled={pending}>{pending ? "확인 중…" : "들어가기"}</button>
-    </form>
+    <>
+      <Suspense fallback={null}><SkipIfSignedIn /></Suspense>
+      <LoginForm />
+    </>
   );
 }
