@@ -1,5 +1,8 @@
 import { expect, test } from "vitest";
-import { parseTitle, type Parsed } from "@/lib/parse-title";
+import { isNumberTitle, parseTitle, type Parsed as FullParsed } from "@/lib/parse-title";
+
+// 기존 기대값은 artistSure 없이 비교한다(toMatchObject)
+type Parsed = Omit<FullParsed, "artistSure">;
 
 const cases: [string, Parsed][] = [
   ["따린 - Feel Good", { status: "auto", songTitle: "Feel Good", originalArtist: null, performers: ["따린"] }],
@@ -25,7 +28,7 @@ const cases: [string, Parsed][] = [
 ];
 
 test.each(cases)("%s", (raw, expected) => {
-  expect(parseTitle(raw)).toEqual(expected);
+  expect(parseTitle(raw)).toMatchObject(expected);
 });
 
 test("bracket naming only someone else is not a song of 따린", () => {
@@ -47,13 +50,13 @@ test.each([
   ["🐶 [개모임 모캡합방] 따린,구슬요,냐냐 - 미스터 (카라) 1절 매너_26.11.06", { status: "auto", songTitle: "미스터", originalArtist: "카라", performers: ["따린", "구슬요", "냐냐"] }],
   ["[모캡 노래/따린] 다다다(OP) - 마음의 날개", { status: "auto", songTitle: "마음의 날개", originalArtist: "다다다(OP)", performers: ["따린"] }],
 ] as [string, Parsed][])("edge: %s", (raw, expected) => {
-  expect(parseTitle(raw)).toEqual(expected);
+  expect(parseTitle(raw)).toMatchObject(expected);
 });
 
 test("names separated only by spaces", () => {
   const partners = new Set(["구슬요", "냐냐"]);
   expect(parseTitle("[클립][따린]따린 구슬요 냐냐-붉은 노을", partners))
-    .toEqual({ status: "auto", songTitle: "붉은 노을", originalArtist: null, performers: ["따린", "구슬요", "냐냐"] });
+    .toMatchObject({ status: "auto", songTitle: "붉은 노을", originalArtist: null, performers: ["따린", "구슬요", "냐냐"] });
   expect(parseTitle("[클립]구슬요 따린 - 지것대", partners).status).toBe("auto");
   // 모르는 이름이 섞이면 확인 필요
   expect(parseTitle("[클립][따린]따린 구슬요 냐냐-붉은 노을").status).toBe("review");
@@ -61,14 +64,14 @@ test("names separated only by spaces", () => {
 
 test("filler words after 따린 are ignored", () => {
   expect(parseTitle("따린 노래방 - Lucky (Jason Mraz)"))
-    .toEqual({ status: "auto", songTitle: "Lucky", originalArtist: "Jason Mraz", performers: ["따린"] });
+    .toMatchObject({ status: "auto", songTitle: "Lucky", originalArtist: "Jason Mraz", performers: ["따린"] });
   // 따린 뒤 이름 하나는 원곡 가수로 본다(실제 제목 측정, 2026-11-19)
   expect(parseTitle("[클립]따린의 김건모 - 서울의 달").status).toBe("auto");
 });
 
 test("date tail is removed before reading the artist", () => {
   expect(parseTitle("🐶 [개모임 모캡합방] 따린 - 안동역에서 (진성)_26.11.06"))
-    .toEqual({ status: "auto", songTitle: "안동역에서", originalArtist: "진성", performers: ["따린"] });
+    .toMatchObject({ status: "auto", songTitle: "안동역에서", originalArtist: "진성", performers: ["따린"] });
 });
 
 test.each([
@@ -149,12 +152,12 @@ test.each<[string, Parsed]>([
   // E. "부르는 따린" 꼬리
   ["오대천왕 - 멋진헛간 짧게 불러주는 따린", { status: "review", songTitle: "멋진헛간", originalArtist: null, performers: ["따린"] }],
 ])("common title form: %s", (raw, expected) => {
-  expect(parseTitle(raw)).toEqual(expected);
+  expect(parseTitle(raw)).toMatchObject(expected);
 });
 
 test("a singing tail is published when the song is already known", () => {
   expect(parseTitle("오대천왕 - 멋진헛간 짧게 불러주는 따린", undefined, new Set(["멋진헛간"])))
-    .toEqual(solo("멋진헛간"));
+    .toMatchObject(solo("멋진헛간"));
 });
 
 test("forms that must stay as they were", () => {
@@ -162,7 +165,7 @@ test("forms that must stay as they were", () => {
   // 모르는 이름 + 따린은 함께 부른 사람일 수 있다
   expect(parseTitle("가습기 따린 - 숨").status).toBe("review");
   // 아는 사람과의 듀엣
-  expect(parseTitle("따린 구슬요 - 8282", partners)).toEqual(
+  expect(parseTitle("따린 구슬요 - 8282", partners)).toMatchObject(
     { status: "auto", songTitle: "8282", originalArtist: null, performers: ["따린", "구슬요"] });
   // 듣기만 하는 클립
   expect(parseTitle("[마카오톡]나비 - Daisy 듣는 따린").status).toBe("review");
@@ -172,4 +175,46 @@ test("forms that must stay as they were", () => {
 
 test("'따린/이름' without spaces names a partner, not a song", () => {
   expect(parseTitle("[클립]따린/미르 -Never Enough").status).not.toBe("auto");
+});
+
+// 2026-11-22 자동 공개 전 확인(스펙 2026-11-22-clip-verification-design)
+test("number-only song from '따린 ○○ -1' is flagged and the guessed artist is not sure", () => {
+  const p = parseTitle("따린 놀리기 -1");
+  expect(p).toMatchObject({ songTitle: "1", artistSure: false });
+  expect(isNumberTitle(p.songTitle!)).toBe(true);
+  expect(isNumberTitle("8282")).toBe(false);
+  expect(isNumberTitle("Golden")).toBe(false);
+});
+
+test.each([
+  ["따린 - 취한 줄을 모르고 LIVE", "취한 줄을 모르고"],
+  ["따린 - 취한 줄을 모르고 (Live)", "취한 줄을 모르고"],
+  ["[클립]따린 - 취한줄을 모르고 많관부", "취한줄을 모르고"],
+  ["[클립]따린 - 빅마마 체념 중간부분 지림 ㄷㄷ", "빅마마 체념 중간부분 지림"],
+])("tail noise and Live are removed: %s", (raw, song) => {
+  expect(parseTitle(raw)).toMatchObject({ status: "auto", songTitle: song });
+});
+
+test("date after the artist parentheses is removed", () => {
+  expect(parseTitle("[클립] 따린 - 녹턴 (이은미) 260319"))
+    .toMatchObject({ status: "auto", songTitle: "녹턴", originalArtist: "이은미", artistSure: true });
+});
+
+test.each(["따린&마냥 - Nobody Knows 원본", "따린 - Golden Live 원본", "따린 - ㄷㄷ"])("not a song: %s", (raw) => {
+  expect(parseTitle(raw).status).toBe("not_song");
+});
+
+test("'곡명 - 가수' on the song side", () => {
+  expect(parseTitle("[클립]따린  -  Fallin - Alicia keys"))
+    .toMatchObject({ status: "auto", songTitle: "Fallin", originalArtist: "Alicia keys", artistSure: true });
+});
+
+test.each([
+  ["따린 - 귀로 (나얼)", true],
+  ["따린 - Feel Good", false],
+  ["[모캡 노래/냐냐x구슬요x따린] 빅뱅 - 붉은노을 [댄스 연출]", true],
+  ["[클립]따린의 김건모 - 서울의 달", false],
+  ["[로이세끼2] 윤미래 - Memories", true],
+] as [string, boolean][])("artistSure: %s", (raw, sure) => {
+  expect(parseTitle(raw).artistSure).toBe(sure);
 });

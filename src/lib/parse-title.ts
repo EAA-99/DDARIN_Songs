@@ -5,12 +5,28 @@ export type Parsed = {
   songTitle: string | null;
   originalArtist: string | null;
   performers: string[];
+  /** 원곡 가수가 제목에 확실하게 적혔는가("곡명 (가수)", "가수 - 곡명" 등). "따린 ○○ - 곡명"의 ○○ 짐작은 false */
+  artistSure: boolean;
 };
 
 const ME = "따린";
-const NOT_SONG_WORDS = ["반응", "저스트댄스", "풀트", "더빙"];
+const NOT_SONG_WORDS = ["반응", "저스트댄스", "풀트", "더빙", "원본"]; // 원본: 원곡을 튼 클립
 const MEMO_WORDS = ["짧", "짧음", "더블링", "풀", "풀버전", "full", "live", "라이브", "cut", "컷"];
-const NOT_SONG: Parsed = { status: "not_song", songTitle: null, originalArtist: null, performers: [] };
+const NOT_SONG: Parsed = { status: "not_song", songTitle: null, originalArtist: null, performers: [], artistSure: false };
+
+// 곡명 끝 잡음: "ㄷㄷ", "ㅋㅋㅋ", "많관부", 날짜 "260319", "LIVE"
+const TAIL_NOISE = /\s*(?:ㄷ+|ㅋ+|ㅎ+|많관부|\d{6}|live|라이브)\s*$/i;
+
+function cleanSong(s: string): string {
+  let t = s.trim();
+  for (let prev = ""; prev !== t;) { prev = t; t = t.replace(TAIL_NOISE, "").trim(); }
+  return t;
+}
+
+/** 정리한 곡명이 숫자 1~2자리뿐인가("따린 놀리기 -1"). 이런 곡명은 자동 공개하지 않는다 */
+export function isNumberTitle(song: string): boolean {
+  return /^\d{1,2}$/.test(song.trim());
+}
 
 const COVER = /\b(cover)\b|커버/gi;
 // 이름 구분자: 한글 사이 x/X/×, 또는 & , × 등
@@ -93,13 +109,22 @@ function isPeopleSide(side: string): boolean {
 }
 
 /** "곡명(가수)" → 곡명·가수. "(w. 이름)"은 가수가 아니라 함께 부른 사람. */
-function splitSongArtist(side: string): { song: string; artist: string | null; with: string[] } {
+function splitSongArtist(raw: string): { song: string; artist: string | null; with: string[] } {
+  const side = cleanSong(raw);
   const m = side.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-  if (!m) return { song: side.trim(), artist: null, with: [] };
+  if (!m) return { song: side, artist: null, with: [] };
   const inner = m[2].trim();
   const w = inner.match(/^(?:w\.|with)\s*(.+)$/i);
   if (w) return { song: m[1].trim(), artist: null, with: parsePeople(w[1]) };
-  return { song: m[1].trim(), artist: cleanArtist(inner) || null, with: [] };
+  return { song: cleanSong(m[1]), artist: cleanArtist(inner) || null, with: [] };
+}
+
+/** 곡명 쪽 "곡명 - 가수"("Fallin - Alicia keys")를 나눈다. 없으면 null */
+function songDashArtist(side: string): { song: string; artist: string } | null {
+  const at = separatorIndex(side);
+  if (at < 0) return null;
+  const song = cleanSong(side.slice(0, at)), artist = cleanArtist(side.slice(at + 1));
+  return song && artist ? { song, artist } : null;
 }
 
 /** "곡명 / 설명"의 설명을 뗀다. "K/DA"처럼 붙은 슬래시는 곡명의 일부로 둔다. */
@@ -198,14 +223,16 @@ export function parseTitle(raw: string, partners?: ReadonlySet<string>, knownSon
   const slashed = left.match(new RegExp(`^${ME}(?:님)?\\s+/\\s+(.+)$`));
   if (slashed) {
     const { song, artist } = splitSongArtist(slashed[1]);
-    if (song) return { status: "auto", songTitle: song, originalArtist: cutArtistTail(right) || artist, performers: [ME] };
+    const a = cutArtistTail(right) || artist;
+    if (song) return { status: "auto", songTitle: song, originalArtist: a, performers: [ME], artistSure: a !== null };
   }
   // "(무엇) - 곡명 짧게 불러주는 따린": 왼쪽은 프로그램 이름 등이라 버린다. 이미 아는 곡이면 공개
   const tail = left.includes(ME) ? null : right.match(SINGING_TAIL);
   if (tail) {
     const song = splitSongArtist(tail[1]).song;
     const known = knownSongs?.has(norm(song));
-    return { status: known ? "auto" : "review", songTitle: song, originalArtist: null, performers: [ME] };
+    if (!song) return NOT_SONG;
+    return { status: known ? "auto" : "review", songTitle: song, originalArtist: null, performers: [ME], artistSure: false };
   }
 
   let songSide: string;
@@ -221,23 +248,29 @@ export function parseTitle(raw: string, partners?: ReadonlySet<string>, knownSon
     const leftNames = parsePeople(left);
     if (partners && leftNames.length && leftNames.every((n) => partners.has(n))) return NOT_SONG;
     // 왼쪽이 원곡 가수. 오른쪽 괄호는 곡명의 다른 표기("Fiction (픽션)")로 본다.
+    const a = cleanArtist(left) || null;
     return tagged.length
-      ? { status: "auto", songTitle: song, originalArtist: cleanArtist(left), performers: tagged }
-      : { status: "review", songTitle: song, originalArtist: cleanArtist(left), performers: [] };
+      ? { status: "auto", songTitle: song, originalArtist: a, performers: tagged, artistSure: a !== null }
+      : { status: "review", songTitle: song, originalArtist: a, performers: [], artistSure: a !== null };
   }
 
   songSide = cutNote(songSide);
-  const { song, artist, with: partnersInTitle } = splitSongArtist(songSide);
+  const dashed = songDashArtist(songSide);
+  const { song, artist, with: partnersInTitle } = dashed ? { ...dashed, with: [] } : splitSongArtist(songSide);
+  if (!song) return NOT_SONG;
   // "곡 - Daisy 듣는 따린"처럼 뒤쪽 설명은 노래가 아닐 수 있어 앞쪽 사람만 본다
   const alone = peopleSide === left ? soloPhrase(peopleSide, partners) : null;
   if (alone && song && !song.includes(ME)) {
     // 사람 쪽에서 밝힌 가수가 있으면 곡명 괄호는 다른 표기("소로 (小路)")로 본다
-    return { status: "auto", songTitle: song, originalArtist: alone.artist ?? artist, performers: [ME] };
+    // "따린 ○○"의 ○○는 짐작이라 확실하지 않다. 곡명 쪽에 적힌 가수만 확실
+    return alone.artist
+      ? { status: "auto", songTitle: song, originalArtist: alone.artist, performers: [ME], artistSure: false }
+      : { status: "auto", songTitle: song, originalArtist: artist, performers: [ME], artistSure: artist !== null };
   }
   const people = readPeople(peopleSide, partners);
   const performers = [...new Set([...people.names, ...partnersInTitle])];
   if (!performers.includes(ME)) return NOT_SONG;
-  if (!song) return NOT_SONG;
-  if (song.includes(ME) || !people.sure) return { status: "review", songTitle: song, originalArtist: artist, performers };
-  return { status: "auto", songTitle: song, originalArtist: artist, performers };
+  const artistSure = artist !== null;
+  if (song.includes(ME) || !people.sure) return { status: "review", songTitle: song, originalArtist: artist, performers, artistSure };
+  return { status: "auto", songTitle: song, originalArtist: artist, performers, artistSure };
 }
