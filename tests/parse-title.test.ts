@@ -218,3 +218,21 @@ test.each([
 ] as [string, boolean][])("artistSure: %s", (raw, sure) => {
   expect(parseTitle(raw).artistSure).toBe(sure);
 });
+
+// 운영 데이터 시험 돌리기에서 나온 제목들(2026-11-22)
+test.each([
+  ["[클립]따린 - 미친소리 (이예준) 더블링", "미친소리", "이예준"],
+  ["[클립][첫경험] 따린 - Beautiful Things (Benson Boone) 1절만", "Beautiful Things", "Benson Boone"],
+  ["🎶따린 - Chandelier (시아)🎶", "Chandelier", "시아"],
+  ["【따린 - When We Were Young(Adele)】", "When We Were Young", "Adele"],
+  ["[클립]따린 - 서울의 달 (김건모) w.리얼세션", "서울의 달", "김건모"],
+  ["따린 - 신시대 / Ado", "신시대", "Ado"],
+  ["[클립]따린 - 비와 당신/럼블피쉬", "비와 당신", "럼블피쉬"],
+  ["[클립]따린 - 친구여(원곡:인순이(feat.조PD))", "친구여", "인순이"],
+] as [string, string, string][])("artist read from a messy title: %s", (raw, song, artist) => {
+  expect(parseTitle(raw)).toMatchObject({ status: "auto", songTitle: song, originalArtist: artist, artistSure: true });
+});
+
+test("a slash note that describes is not the artist", () => {
+  expect(parseTitle("따린 - 취한 줄을 모르고 / 감상하는 머독")).toMatchObject({ songTitle: "취한 줄을 모르고", artistSure: false });
+});

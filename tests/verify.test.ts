@@ -16,12 +16,12 @@ beforeEach(async () => { db = await createTestDb(); });
 const now = parseKst("2026-11-22 04:00:00");
 const DAY = 86400_000;
 
-/** 곡명 → 결과. 부른 곡명을 기록한다. "!"로 시작하는 곡명은 오류 */
+/** 곡명 → 결과. 부른 곡명을 기록한다. "에러"로 시작하는 곡명은 오류 */
 function fakeLookup(table: Record<string, string | null>) {
   const calls: string[] = [];
   const lookup: SongLookup = async (t) => {
     calls.push(t);
-    if (t.startsWith("!")) throw new DeezerError("down");
+    if (t.startsWith("에러")) throw new DeezerError("down");
     return t in table ? { found: true, artist: table[t] } : { found: false, artist: null };
   };
   return { lookup, calls };
@@ -45,7 +45,7 @@ test("lookupCached: not-found is asked again after 30 days", async () => {
 
 test("lookupCached: an error is not stored", async () => {
   const f = fakeLookup({});
-  expect(await lookupCached(db, "!x", f.lookup, now)).toBe("error");
+  expect(await lookupCached(db, "에러x", f.lookup, now)).toBe("error");
   expect(await db.select().from(titleChecks)).toHaveLength(0);
 });
 
@@ -68,7 +68,7 @@ test("decide: a known song needs no lookup; an error keeps it for later", async 
   expect(await decide(db, parseTitle("따린 - 캐치캐치"), new Set(["캐치캐치"]), f.lookup, now))
     .toEqual({ status: "auto", artist: null, unverified: false });
   expect(f.calls).toHaveLength(0);
-  expect(await decide(db, parseTitle("따린 - !down"), new Set(), f.lookup, now))
+  expect(await decide(db, parseTitle("따린 - 에러남"), new Set(), f.lookup, now))
     .toEqual({ status: "review", artist: null, unverified: true });
 });
 
@@ -94,7 +94,7 @@ test("ingest with lookup: chat clip is held, a real song is published with its a
 
 test("ingest with lookup: same title twice asks once; error marks unverified", async () => {
   const f = fakeLookup({ Golden: "HUNTR/X" });
-  await ingestClips(db, [soop(1, "Golden - 따린"), soop(2, "따린 - Golden", "2026-11-21 01:00:00"), soop(3, "따린 - !down")],
+  await ingestClips(db, [soop(1, "Golden - 따린"), soop(2, "따린 - Golden", "2026-11-21 01:00:00"), soop(3, "따린 - 에러남")],
     now, undefined, undefined, f.lookup);
   expect(f.calls.filter((t) => t === "Golden")).toHaveLength(1);
   expect((await clip(3))).toMatchObject({ status: "review", unverified: true });
@@ -130,7 +130,7 @@ test("recheck auto: chat clips go to review, locked stay, 원본 becomes not_son
 });
 
 test("recheck unverified: found this time → auto and flag cleared", async () => {
-  await ingestClips(db, [soop(1, "따린 - !Golden")], now, undefined, undefined, fakeLookup({}).lookup);
+  await ingestClips(db, [soop(1, "따린 - 에러골든")], now, undefined, undefined, fakeLookup({}).lookup);
   expect(await clip(1)).toMatchObject({ status: "review", unverified: true });
   const ok: SongLookup = async () => ({ found: true, artist: "HUNTR/X" });
   const r = await recheckClips(db, "unverified", ok, now);

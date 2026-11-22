@@ -14,12 +14,20 @@ const NOT_SONG_WORDS = ["반응", "저스트댄스", "풀트", "더빙", "원본
 const MEMO_WORDS = ["짧", "짧음", "더블링", "풀", "풀버전", "full", "live", "라이브", "cut", "컷"];
 const NOT_SONG: Parsed = { status: "not_song", songTitle: null, originalArtist: null, performers: [], artistSure: false };
 
-// 곡명 끝 잡음: "ㄷㄷ", "ㅋㅋㅋ", "많관부", 날짜 "260319", "LIVE"
-const TAIL_NOISE = /\s*(?:ㄷ+|ㅋ+|ㅎ+|많관부|\d{6}|live|라이브)\s*$/i;
+// 곡명 끝 메모(띄어 쓴 낱말): "LIVE", "더블링", "1절만", "커버곡", "2차 연습", "노래방 ver", "1.5배속", 날짜 "260319"
+const TAIL_MEMO = /(?:^|\s+)(?:많관부|\d{6}|live|라이브|커버곡|커버|cover|\d절만?|더블링|화음(?:버전)?|(?:\d차\s*)?연습|첫\s?도전|노래방\s?ver\.?|acoustic\s?ver\.?|ver\.?|찍먹|댄스|듀엣|\d트|(?:\d(?:\.\d)?)?배속|초대가수)\s*$/i;
+// 붙여 쓴 감탄 자모 "ㄷㄷ", "ㅋㅋㅋ", 함께 부른 사람 꼬리 "w.리얼세션", "with 카주", "feat.가습철"
+const TAIL_JAMO = /[ㄱ-ㅎㅏ-ㅣ]+$/;
+const TAIL_WITH = /\s+(?:w\.|with\s|feat\.?|ft\.)\s*[^()]*$/i;
+// 앞뒤 이모지·장식("🎵", "【】"). 괄호는 남긴다
+const EDGE = /^[^\p{L}\p{N}(]+|[^\p{L}\p{N})]+$/gu;
 
 function cleanSong(s: string): string {
   let t = s.trim();
-  for (let prev = ""; prev !== t;) { prev = t; t = t.replace(TAIL_NOISE, "").trim(); }
+  for (let prev = ""; prev !== t;) {
+    prev = t;
+    t = t.replace(EDGE, "").replace(TAIL_JAMO, "").replace(TAIL_WITH, "").replace(TAIL_MEMO, "").trim();
+  }
   return t;
 }
 
@@ -111,12 +119,28 @@ function isPeopleSide(side: string): boolean {
 /** "곡명(가수)" → 곡명·가수. "(w. 이름)"은 가수가 아니라 함께 부른 사람. */
 function splitSongArtist(raw: string): { song: string; artist: string | null; with: string[] } {
   const side = cleanSong(raw);
-  const m = side.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
-  if (!m) return { song: side, artist: null, with: [] };
+  // 첫 괄호가 가수. 괄호 뒤 꼬리("미친소리 (이예준) 더블링")는 메모라 버린다
+  const m = side.match(/^(.+?)\s*\(([^)]+)\)(.*)$/);
+  if (!m) {
+    const sl = slashArtist(side);
+    return sl ? { ...sl, with: [] } : { song: side, artist: null, with: [] };
+  }
   const inner = m[2].trim();
   const w = inner.match(/^(?:w\.|with)\s*(.+)$/i);
-  if (w) return { song: m[1].trim(), artist: null, with: parsePeople(w[1]) };
-  return { song: cleanSong(m[1]), artist: cleanArtist(inner) || null, with: [] };
+  if (w) return { song: cleanSong(m[1]), artist: null, with: parsePeople(w[1]) };
+  return { song: cleanSong(m[1]), artist: cleanArtist(inner.replace(/^원곡\s*[:：]\s*/, "").replace(/\(.*$/, "")) || null, with: [] };
+}
+
+/** "곡명/가수", "곡명 / 가수"("비와 당신/럼블피쉬", "신시대 / Ado"). "K/DA", "AC/DC"처럼 짧으면 곡명의 일부.
+ *  "/ 감상하는 머독"처럼 설명으로 보이면(동사·관형형 끝, 낱말 넷 이상) 가수가 아니다 */
+function slashArtist(side: string): { song: string; artist: string } | undefined {
+  const i = side.indexOf("/");
+  if (i < 0) return undefined;
+  const song = cleanSong(side.slice(0, i)), artist = cleanArtist(side.slice(i + 1));
+  if (song.length < 2 || artist.length < 2 || artist.length > 30 || (/^[A-Za-z0-9]{1,3}$/.test(song) && /^[A-Za-z0-9]{1,3}$/.test(artist))) return undefined;
+  const words = artist.split(/\s+/);
+  if (words.length > 3 || words.some((w) => /(는|은|던|한|다)$/.test(w) && /[가-힣]{3,}/.test(w))) return undefined;
+  return { song, artist };
 }
 
 /** 곡명 쪽 "곡명 - 가수"("Fallin - Alicia keys")를 나눈다. 없으면 null */
@@ -129,7 +153,10 @@ function songDashArtist(side: string): { song: string; artist: string } | null {
 
 /** "곡명 / 설명"의 설명을 뗀다. "K/DA"처럼 붙은 슬래시는 곡명의 일부로 둔다. */
 function cutNote(songSide: string): string {
-  return songSide.split(/\s+\/|\/\s+/)[0].trim();
+  // "곡명 / 가수"는 남긴다(splitSongArtist가 가수로 읽음)
+  const parts = songSide.split(/\s+\/|\/\s+/);
+  if (parts.length === 2 && slashArtist(songSide)) return songSide.trim();
+  return parts[0].trim();
 }
 
 /** 가수 뒤 꼬리를 뗀다: "Bruno Mars | 빵터진 따린이", "Tones And I to 빙밍" */

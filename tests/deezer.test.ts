@@ -8,10 +8,12 @@ const fakeFetch = (body: unknown, status = 200, seen?: string[]) =>
     return new Response(typeof body === "string" ? body : JSON.stringify(body), { status });
   }) as typeof fetch;
 
-test("only an exact (normalized) title counts, and the query is built", async () => {
+test("a contained title counts as found but gives no artist; the query is built", async () => {
   const seen: string[] = [];
   const lookup = searchDeezer(fakeFetch({ data: [track("New Golden Age", "Keane", 900000)] }, 200, seen));
-  expect(await lookup("Golden")).toEqual({ found: false, artist: null });
+  expect(await lookup("Golden")).toEqual({ found: true, artist: null });
+  expect(await searchDeezer(fakeFetch({ data: [track("Golden", "HUNTR/X", 1)] }))("골든 Golden 커버곡")).toEqual({ found: true, artist: null });
+  expect(await searchDeezer(fakeFetch({ data: [track("Ocean", "X", 1)] }))("Golden")).toEqual({ found: false, artist: null });
   const u = new URL(seen[0]);
   expect(u.origin + u.pathname).toBe("https://api.deezer.com/search/track");
   expect(u.searchParams.get("q")).toBe("Golden");
@@ -36,4 +38,11 @@ test.each([
   ["not JSON", fakeFetch("<html>", 200)],
 ])("%s → DeezerError", async (_, f) => {
   await expect(searchDeezer(f)("Golden")).rejects.toBeInstanceOf(DeezerError);
+});
+
+test("backtick apostrophes match", async () => {
+  const seen: string[] = [];
+  const r = await searchDeezer(fakeFetch({ data: [track("Don't Know Why", "Norah Jones", 900000)] }, 200, seen))("Don`t Know Why");
+  expect(r).toEqual({ found: true, artist: "Norah Jones" });
+  expect(new URL(seen[0]).searchParams.get("q")).toBe("Don't Know Why");
 });
